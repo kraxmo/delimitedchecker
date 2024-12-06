@@ -21,35 +21,41 @@ Output file (if invalid) contains header and identified invalid records
 
 '''
 
-def get_args():
-    parser = ap.ArgumentParser(
-        description='Check file delimiter counts to verify detail vs. header',
-        epilog=HELP_EPILOG,
-        formatter_class=ap.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument('delimiter', type=str, default=",", help='Input file CSV delimiter')
-    parser.add_argument('filename', type=str, help='Input filename')
-    parser.add_argument('-v', '--verbosemode', action='store_true', help='Verbose mode: True = print process messages, False(default) = omit process messages')
-    return parser.parse_args()
-
 class BadRecord:
     """Defines bad record with incorrect number of delimiters"""
     def __init__(self, key, value):  # class constructor
         self.key = key               # contains field count
         self.value = value           # contains record
+
     def __iter__(self):              # allows object to iterate within loop
         yield self
 
 class ParseDelimitedFile():
+    r"""
+        A class that parses passed filename by delimiter to verify header record delimiter counts
+        match each detail record
+        
+        :Example:
+        >>> pdf = ParseDelimitedFile(',', r'C:\myfile.csv')
+    """
+    
+    ERROR_DELIMITER_FILE_SUFFIX = '.ERROR_DELIMITER'
+    
     def __init__(self, delimiter, filename, verbosemode):
         self.delimiter   = delimiter
         self.filename    = filename
         self.verbosemode = verbosemode
         self.badrecords  = []
     
-    def parse(self):
-        """Reads passed delimiter and compares delimiter count of header record (first record) to each detail record"""
-        FILESUFFIX = '_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.ERROR_DELIMITER'
+    def parse(self) -> bool:
+        """
+        Reads passed delimiter and compares delimiter count of header record (first record) to each detail record
+        
+        :return: Returns True if valid run else raises ValueError
+        :rtype: bool
+        """
+        
+        FILESUFFIX = '_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + self.ERROR_DELIMITER_FILE_SUFFIX
         dict_tally = {}
         record_count = 0
         for record in self.read_delimited_record(self.filename):
@@ -98,7 +104,13 @@ class ParseDelimitedFile():
         return True
 
     def read_delimited_record(self, filename):
-        """Read each record from passed filename using a generator pattern"""
+        """
+        Reads each record from passed filename using a generator pattern
+        
+        :returns: record (generator object)
+        :rtype: str
+        """
+
         with open(filename, "r") as csvfile: # open filename with file handle
             for rec in csvfile:
                 yield rec
@@ -107,7 +119,34 @@ class ParseDelimitedFile():
         """append record#, fieldcount, header record to BadRecord list"""
         self.badrecords.append(BadRecord('{:0>14.4f}'.format(record_count + delimiter_count/10000), record))
 
-# Command-line run
+def get_args():
+    """
+    Reads, validates, and returns command line arguments
+    
+    :Example:
+    >>> parser = argparse.ArgumentParser()
+    >>> parser.add_argument('--foo')
+    _StoreAction(option_strings=['--foo'], dest='foo', nargs=None, const=None, default=None, type=None, choices=None, required=False, help=None, metavar=None)
+    >>> args = parser.parse_args(['--foo', 'BAR'])
+    >>> vars(args)
+    {'foo': 'BAR'}
+    >>> args.foo
+    'BAR'
+    
+    :return: parsed arguments
+    :rtype: object subclass with a readable string representation
+    """
+    
+    parser = ap.ArgumentParser(
+        description='Check file delimiter counts to verify detail vs. header',
+        epilog=HELP_EPILOG,
+        formatter_class=ap.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument('delimiter', type=str, default=",", help='Input file CSV delimiter')
+    parser.add_argument('filename', type=str, help='Input filename')
+    parser.add_argument('-v', '--verbosemode', action='store_true', help='Verbose mode: True = print process messages, False(default) = omit process messages')
+    return parser.parse_args()
+
 if __name__ == '__main__':
     args = get_args()
     if args.verbosemode:
