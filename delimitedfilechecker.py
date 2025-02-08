@@ -11,6 +11,7 @@
 """
 
 import argparse as ap
+import csv
 from datetime import datetime
 
 HELP_EPILOG = '''
@@ -38,13 +39,12 @@ class ParseDelimitedFile():
         :Example:
         >>> pdf = ParseDelimitedFile(',', r'C:\myfile.csv')
     """
-    
     ERROR_DELIMITER_FILE_SUFFIX = '.ERROR_DELIMITER'
     
-    def __init__(self, delimiter, filename, verbosemode):
+    def __init__(self, delimiter, filename, verbose) -> None:
         self.delimiter   = delimiter
         self.filename    = filename
-        self.verbosemode = verbosemode
+        self.verbose     = verbose
         self.badrecords  = []
     
     def parse(self) -> bool:
@@ -54,7 +54,6 @@ class ParseDelimitedFile():
         :return: Returns True if valid run else raises ValueError
         :rtype: bool
         """
-        
         FILESUFFIX = '_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + self.ERROR_DELIMITER_FILE_SUFFIX
         dict_tally = {}
         record_count = 0
@@ -83,39 +82,61 @@ class ParseDelimitedFile():
         totalDelimiterCount = len(self.badrecords) - 1
         summary = '|'.join([f"{k}: {dict_tally[k]}" for k in dict_tally])
         
-        if totalDelimiterCount:
-            # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
+        if totalDelimiterCount:     # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
             message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + summary + '\n' + ''.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
             with open(self.filename + FILESUFFIX, 'w') as badfile:
                 badfile.write(message)
 
-            if self.verbosemode:
+            if self.verbose:
                 print('- CSV Status: BAD')
                 print('  + Delimiter Summary Record Count: (total delimiters: records)')
                 print('    * ' + str(headerDelimiterCount) + ': 1 (header)')
                 print('    * ' + '\n    * '.join(summary.split('|')))
             
             # Format and raise error condition   
-            errorMessage = 'File ' + self.filename + ' has ' + str(totalDelimiterCount) + ' badly delimited record' + ('s' if totalDelimiterCount > 1 else '')
-            raise ValueError(errorMessage)
+            message = f"File {self.filename} has {totalDelimiterCount} badly delimited record{'s' if totalDelimiterCount > 1 else ''}"
+            print(f"{message}\nSee file {self.filename + FILESUFFIX} for details\n")
+            # message = f"File {self.filename} has {totalDelimiterCount} badly delimited record{'s' if totalDelimiterCount > 1 else ''}\nSee file {self.filename + FILESUFFIX} for details\n"
+            raise ValueError(message)
         else: 
-            if self.verbosemode: print('- CSV Status: GOOD')
+            if self.verbose: print('- CSV Status: GOOD')
         
         return True
 
-    def read_delimited_record(self, filename):
+    def read_delimited_record(self, filename: str):
         """
         Reads each record from passed filename using a generator pattern
         
         :returns: record (generator object)
         :rtype: str
         """
-
-        with open(filename, "r") as csvfile: # open filename with file handle
-            for rec in csvfile:
-                yield rec
-
-    def save_bad_record(self, record, record_count, delimiter_count):
+        # try:
+        #     with open(filename, "r", encoding='utf-8') as csvfile: # open filename with file handle
+        #         ctr = 0
+        #         for rec in csvfile:
+        #             ctr += 1
+        #             if self.verbose: print(f"  + {ctr}")
+        #             yield rec
+        # except UnicodeDecodeError as err:
+        #     message = f"\nRecord: {ctr}\nError: {err}\n\n{','.join(rec)}"
+        #     print(message)
+        #     exit(1)
+        try:
+            with open(filename, "r", encoding='utf-8') as csvfile:  # open filename with file handle
+                ctr = 0
+                for record in csv.reader(csvfile, delimiter=self.delimiter):
+                    if self.verbose: 
+                        ctr += 1
+                        print(f"  + {ctr}: {record[0:50]}")
+                        
+                    yield self.delimiter.join(record)
+                    
+        except UnicodeDecodeError as err:
+            message = f"\nRecord: {ctr}\nError: {err}\n\n{','.join(record)}"
+            print(message)
+            raise err
+            
+    def save_bad_record(self, record: str, record_count: int, delimiter_count: int) -> None:
         """append record#, fieldcount, header record to BadRecord list"""
         self.badrecords.append(BadRecord('{:0>14.4f}'.format(record_count + delimiter_count/10000), record))
 
@@ -144,13 +165,13 @@ def get_args():
     )
     parser.add_argument('delimiter', type=str, default=",", help='Input file CSV delimiter')
     parser.add_argument('filename', type=str, help='Input filename')
-    parser.add_argument('-v', '--verbosemode', action='store_true', help='Verbose mode: True = print process messages, False(default) = omit process messages')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose mode: True = print process messages, False(default) = omit process messages')
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = get_args()
-    if args.verbosemode:
-        print(f'delimitedfilechecker:\n- delimiter: {args.delimiter}\n- filename: {args.filename}\n- verbosemode: {args.verbosemode}')
+    if args.verbose:
+        print(f'\ndelimitedfilechecker:\n- delimiter: {args.delimiter}\n- filename : {args.filename}\n- verbose  : {args.verbose}')
         
-    pdf = ParseDelimitedFile(args.delimiter, args.filename, args.verbosemode)
+    pdf = ParseDelimitedFile(args.delimiter, args.filename, args.verbose)
     pdf.parse()

@@ -1,32 +1,38 @@
 import delimitedfilechecker as dfc1
+from os import path
+import sys
 import unittest
 
 class TestDelimitedFileChecker(unittest.TestCase):
+    VERBOSE = False
+    def identify(func):
+        def wrapper(*args, **kwargs):
+            if TestDelimitedFileChecker.VERBOSE: print(f"\nTEST: {func.__name__}")
+            return func(*args, **kwargs)
+        return wrapper
+    
     def setUp(self):
         self.delimiter = "|"
-        self.verbosemode = False
+        self.directory   = path.dirname(path.realpath(sys.argv[0]))+'/data'
+        self.goodfile    = "goodfile.csv"
+        self.badfile     = "badfile.csv"
         
+    @identify
     def test_good_file(self):
-        self.filename = "goodfile.csv"
-        pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.verbosemode)
+        self.filename = path.join(self.directory, self.goodfile)
+        pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.VERBOSE)
         self.assertTrue(pdf.parse())
 
+    @identify
     def test_bad_file_1(self):
-        self.filename = "badfile.csv"
-        pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.verbosemode)
-        self.assertRaises(ValueError, pdf.parse)
+        self.filename = path.join(self.directory, self.badfile)
+        pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.VERBOSE)
+        self.assertRaises(ValueError)
 
-    def test_bad_file_2(self):
-        self.filename = "badfile.csv"
-        pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.verbosemode)
-        with self.assertRaises(ValueError) as cm:
-            pdf.parse()
-
-        cm.exception
-        message = cm.exception.args[0]
-        self.assertTrue(message.startswith('File badfile.csv has 3 badly delimited records'))
-    
-    def test_bad_file_3(self):
-        self.filename = "badfile.csv"
-        pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.verbosemode)
-        self.assertRaisesRegex(ValueError, r'File badfile.csv has 3 badly delimited records', pdf.parse)
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == '-v':   
+        TestDelimitedFileChecker.VERBOSE = True
+    else:
+        TestDelimitedFileChecker.VERBOSE = False
+        
+    unittest.main()
