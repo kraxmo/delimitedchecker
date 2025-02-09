@@ -83,7 +83,8 @@ class ParseDelimitedFile():
         summary = '|'.join([f"{k}: {dict_tally[k]}" for k in dict_tally])
         
         if totalDelimiterCount:     # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
-            message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + summary + '\n' + ''.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
+            # message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + summary + '\n' + ''.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
+            message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + '\n'.join(summary.split('|')) + '\n' + '\n'.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
             with open(self.filename + FILESUFFIX, 'w') as badfile:
                 badfile.write(message)
 
@@ -132,7 +133,7 @@ class ParseDelimitedFile():
                     yield self.delimiter.join(record)
                     
         except UnicodeDecodeError as err:
-            message = f"\nRecord: {ctr}\nError: {err}\n\n{','.join(record)}"
+            message = f"\nRecord: {ctr}\nError: {err}"
             print(message)
             raise err
             
@@ -168,10 +169,19 @@ def get_args():
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose mode: True = print process messages, False(default) = omit process messages')
     return parser.parse_args()
 
+DEBUG = False
 if __name__ == '__main__':
-    args = get_args()
-    if args.verbose:
-        print(f'\ndelimitedfilechecker:\n- delimiter: {args.delimiter}\n- filename : {args.filename}\n- verbose  : {args.verbose}')
-        
-    pdf = ParseDelimitedFile(args.delimiter, args.filename, args.verbose)
+    if DEBUG:
+        delimiter = ','
+        filename = r'.\data\badfile.csv'
+        verbose = True
+    else:
+        args = get_args()
+        delimiter = args.delimiter
+        filename = args.filename
+        verbose = args.verbose
+        if args.verbose:
+            print(f'\ndelimitedfilechecker:\n- delimiter: {args.delimiter}\n- filename : {args.filename}\n- verbose  : {args.verbose}')
+
+    pdf = ParseDelimitedFile(delimiter, filename, verbose)
     pdf.parse()
