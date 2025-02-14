@@ -60,16 +60,13 @@ class ParseDelimitedFile():
         for record in self.read_delimited_record(self.filename):
             record_count += 1
             if record_count == 1:
-                # get header delimiter count
-                headerDelimiterCount = record.count(self.delimiter)
-                # append record#, fieldcount, header record to BadRecord list
-                self.save_bad_record(record, record_count, headerDelimiterCount)
+                headerDelimiterCount = record.count(self.delimiter)                 # get header delimiter count
+                self.save_bad_record(record, record_count, headerDelimiterCount)    # append record#, fieldcount, header record to BadRecord list
                 continue
 
-            # if any detail data exists
-            if len(record.strip()) > 0:                             
+            if len(record.strip()) > 0:                             # if any detail data exists
                 detailDelimiterCount = record.count(self.delimiter) # get detail delimiter count
-                if headerDelimiterCount != detailDelimiterCount: # if header count <> detail, save record
+                if headerDelimiterCount != detailDelimiterCount:    # if header count <> detail, save record
                     self.save_bad_record(record, record_count, detailDelimiterCount)
 
                 # capture delimiter length statistics                    
@@ -78,13 +75,9 @@ class ParseDelimitedFile():
                 except KeyError:
                     dict_tally[detailDelimiterCount] = 1
 
-        # count total bad records
-        totalDelimiterCount = len(self.badrecords) - 1
         summary = '|'.join([f"{k}: {dict_tally[k]}" for k in dict_tally])
-        
-        if totalDelimiterCount:     # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
-            # message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + summary + '\n' + ''.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
-            message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + '\n'.join(summary.split('|')) + '\n' + '\n'.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
+        if (total_bad_records := len(self.badrecords) - 1):     # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
+            message = 'filename :' + self.filename + '\ndelimiter:' + self.delimiter + '\nfields   :' + '{:0>.4f}'.format(headerDelimiterCount / 10000)[-4:] + '\n\nDelimiter Count Summary:\n' + '\n'.join(summary.split('|')) + '\n\nDelimiter Header and Bad Record Detail:\n' + '\n'.join(bad.key + ':' + ''.join(bad.value) for bad in self.badrecords)
             with open(self.filename + FILESUFFIX, 'w') as badfile:
                 badfile.write(message)
 
@@ -95,9 +88,8 @@ class ParseDelimitedFile():
                 print('    * ' + '\n    * '.join(summary.split('|')))
             
             # Format and raise error condition   
-            message = f"File {self.filename} has {totalDelimiterCount} badly delimited record{'s' if totalDelimiterCount > 1 else ''}"
+            message = f"File {self.filename} has {total_bad_records} badly delimited record{'s' if total_bad_records > 1 else ''}"
             print(f"{message}\nSee file {self.filename + FILESUFFIX} for details\n")
-            # message = f"File {self.filename} has {totalDelimiterCount} badly delimited record{'s' if totalDelimiterCount > 1 else ''}\nSee file {self.filename + FILESUFFIX} for details\n"
             raise ValueError(message)
         else: 
             if self.verbose: print('- CSV Status: GOOD')
@@ -111,17 +103,6 @@ class ParseDelimitedFile():
         :returns: record (generator object)
         :rtype: str
         """
-        # try:
-        #     with open(filename, "r", encoding='utf-8') as csvfile: # open filename with file handle
-        #         ctr = 0
-        #         for rec in csvfile:
-        #             ctr += 1
-        #             if self.verbose: print(f"  + {ctr}")
-        #             yield rec
-        # except UnicodeDecodeError as err:
-        #     message = f"\nRecord: {ctr}\nError: {err}\n\n{','.join(rec)}"
-        #     print(message)
-        #     exit(1)
         try:
             with open(filename, "r", encoding='utf-8') as csvfile:  # open filename with file handle
                 ctr = 0

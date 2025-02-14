@@ -24,7 +24,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
         self.assertTrue(pdf.parse())
 
     @identify
-    def test_bad_file_1(self):
+    def test_bad_file(self):
         self.filename = path.join(self.directory, self.badfile)
         pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, self.VERBOSE)
         self.assertRaises(ValueError)
