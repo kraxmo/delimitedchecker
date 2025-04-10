@@ -20,7 +20,7 @@ The purpose of this script is to check all files in specified directory for deli
 '''
 
 class ParseDelimitedDirectory:
-    def __init__(self, delimiter: str, directory: str, filesuffix: str, verbosemode: bool):
+    def __init__(self, delimiter: str, directory: str, filesuffix: str, verbosemode: bool) -> None:
         self.delimiter   = delimiter
         self.directory   = os.path.normpath(directory)
         self.filesuffix  = filesuffix
