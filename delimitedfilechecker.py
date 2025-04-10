@@ -88,8 +88,8 @@ class ParseDelimitedFile():
                 print('    * ' + '\n    * '.join(summary.split('|')))
             
             # Format and raise error condition   
-            message = f"File {self.filename} has {total_bad_records} badly delimited record{'s' if total_bad_records > 1 else ''}"
-            print(f"{message}\nSee file {self.filename + FILESUFFIX} for details\n")
+            message = f"File {self.filename} has {total_bad_records} badly delimited record{'s' if total_bad_records > 1 else ''}\nSee file {self.filename + FILESUFFIX} for details"
+            if self.verbose: print(f"{message}\n")
             raise ValueError(message)
         else: 
             if self.verbose: print('- CSV Status: GOOD')
