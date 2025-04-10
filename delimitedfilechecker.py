@@ -13,6 +13,7 @@
 import argparse as ap
 import csv
 from datetime import datetime
+from typing import Iterable
 
 HELP_EPILOG = '''
 
@@ -96,7 +97,7 @@ class ParseDelimitedFile():
         
         return True
 
-    def read_delimited_record(self, filename: str):
+    def read_delimited_record(self, filename: str) -> Iterable[str]:
         """
         Reads each record from passed filename using a generator pattern
         
