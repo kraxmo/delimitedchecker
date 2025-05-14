@@ -57,6 +57,7 @@ class ParseDelimitedFile():
         """
         FILESUFFIX = '_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + self.ERROR_DELIMITER_FILE_SUFFIX
         dict_tally = {}
+        headerDelimiterCount = 0
         record_count = 0
         for record in self.read_delimited_record(self.filename):
             record_count += 1
@@ -89,7 +90,7 @@ class ParseDelimitedFile():
                 print('    * ' + '\n    * '.join(summary.split('|')))
             
             # Format and raise error condition   
-            message = f"File {self.filename} has {total_bad_records} badly delimited record{'s' if total_bad_records > 1 else ''}\nSee file {self.filename + FILESUFFIX} for details"
+            message = f"File {self.filename} has {total_bad_records} badly delimited record{'s' if total_bad_records > 1 else ''}\n- See file {self.filename + FILESUFFIX} for details"
             if self.verbose: print(f"{message}\n")
             raise ValueError(message)
         else: 

@@ -11,13 +11,7 @@
 import argparse as ap
 import delimitedfilechecker as dfc
 import os
-
-DEBUG = False
-HELP_EPILOG = '''
-
-The purpose of this script is to check all files in specified directory for delimiter counts mismatches (header vs. detail)
-
-'''
+import sys
 
 class ParseDelimitedDirectory:
     def __init__(self, delimiter: str, directory: str, filesuffix: str, verbosemode: bool) -> None:
@@ -60,8 +54,13 @@ class ParseDelimitedDirectory:
                 if self.verbosemode: print('-' * 50 + '\n')
         
         if errorCount:
-            print(f"Directory {self.directory} has {str(errorCount)} badly delimited file{'s' if errorCount > 1 else ''}")
-            if not self.verbosemode: print('- See directory files with filesuffix _ERROR_DELIMITER_YYYY_MM_DD_HH_MM_DD for details')
+            #print(f"Directory {self.directory} has {str(errorCount)} badly delimited file{'s' if errorCount > 1 else ''}")
+            #if not self.verbosemode: print('- See directory files with filesuffix _ERROR_DELIMITER_YYYY_MM_DD_HH_MM_DD for details')
+            message = f"Directory {self.directory} has {str(errorCount)} badly delimited file{'s' if errorCount > 1 else ''}"
+            message += '\n- See directory files with filesuffix _ERROR_DELIMITER_YYYY_MM_DD_HH_MM_DD for details'
+            print(message)
+        
+        sys.exit(errorCount)
 
     def read_directory_files(self):
         """
@@ -105,9 +104,16 @@ def get_args():
     parser.add_argument('-v', '--verbosemode', action='store_true', help='Verbose mode: True = print process messages, False(default) = omit process messages')
     return parser.parse_args()
 
+DEBUG = False
+HELP_EPILOG = '''
+
+The purpose of this script is to check all files in specified directory for delimiter counts mismatches (header vs. detail)
+
+'''
+
 if __name__ == '__main__':
     if DEBUG:
-        args = ap.Namespace(delimiter='|', directory='.', filesuffix='csv', verbosemode=True)
+        args = ap.Namespace(delimiter='|', directory=r'.', filesuffix='csv', verbosemode=True)
     else:
         args = get_args()
 
