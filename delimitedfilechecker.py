@@ -109,10 +109,6 @@ class ParseDelimitedFile():
             with open(filename, "r", encoding='utf-8') as csvfile:  # open filename with file handle
                 ctr = 0
                 for record in csv.reader(csvfile, delimiter=self.delimiter):
-                    if self.verbose: 
-                        ctr += 1
-                        print(f"  + {ctr}: {record[0:50]}")
-                        
                     yield self.delimiter.join(record)
                     
         except UnicodeDecodeError as err:

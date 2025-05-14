@@ -27,7 +27,6 @@ class ParseDelimitedDirectory:
         """
         Reads passed directory's files and calls delimitedfilechecker with delimiter and file
         """
-
         if self.verbosemode:
             print('\n' + '=' * 50)
             print(f'delimitedfilechecker\n- delimiter  : {self.delimiter}\n- directory  : {self.directory}\n- filesuffix     : {self.filesuffix}\n- verbosemode: {self.verbosemode}')
@@ -41,11 +40,11 @@ class ParseDelimitedDirectory:
             print(f"Error: path '{self.directory} is not a directory.")
 
         errorCount = 0
-        if self.verbosemode: print(f"DIRECTORY: {self.directory}")
+        print(f"DIRECTORY: {self.directory}")
         for file in self.read_directory_files():
             try:
                 d = dfc.ParseDelimitedFile(self.delimiter, file, self.verbosemode)
-                if self.verbosemode: print(f"{'-' * 50}\nFILENAME: '{file}'")
+                print(f"FILENAME : {file}")
                 d.parse() # call function passing delimiter and filename
             except Exception as e:
                 print(f"Exception: {e}")
@@ -54,8 +53,6 @@ class ParseDelimitedDirectory:
                 if self.verbosemode: print('-' * 50 + '\n')
         
         if errorCount:
-            #print(f"Directory {self.directory} has {str(errorCount)} badly delimited file{'s' if errorCount > 1 else ''}")
-            #if not self.verbosemode: print('- See directory files with filesuffix _ERROR_DELIMITER_YYYY_MM_DD_HH_MM_DD for details')
             message = f"Directory {self.directory} has {str(errorCount)} badly delimited file{'s' if errorCount > 1 else ''}"
             message += '\n- See directory files with filesuffix _ERROR_DELIMITER_YYYY_MM_DD_HH_MM_DD for details'
             print(message)
