@@ -43,9 +43,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
         self.badfile = "badfile.csv"
 
     @identify
-    def test_good_file(self):
+    def test_good_file_with_outputfile(self):
         # Provide CSV content where header and detail delimiter counts match
-        good_content = "col1,col2\nval1,val2\nval3,val4\n"
+        good_content = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
@@ -61,13 +61,35 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename)
-            self.assertTrue(pdf.parse())
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, True)
+            self.assertTrue(pdf.parse_records())
 
     @identify
-    def test_bad_file(self):
+    def test_good_file_without_outputfile(self):
+        # Provide CSV content where header and detail delimiter counts match
+        good_content = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            # read the mocked good file
+            if fname.endswith(self.goodfile) and "r" in mode:
+                return io.StringIO(good_content)
+            # reroute any ERROR_DELIMITER write output to stdout
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            self.filename = path.join(self.directory, self.goodfile)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, False)
+            self.assertTrue(pdf.parse_records())
+
+    @identify
+    def test_bad_file_with_outputfile(self):
         # Provide CSV content where a detail row has different delimiter count
-        bad_content = "col1,col2\nval1,val2\nonlyonefield\n"
+        bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
@@ -83,8 +105,52 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename)
-            self.assertFalse(pdf.parse())
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            self.assertFalse(pdf.parse_records())
+
+    @identify
+    def test_bad_file_without_outputfile(self):
+        # Provide CSV content where a detail row has different delimiter count
+        bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            # read the mocked bad file
+            if fname.endswith(self.badfile) and "r" in mode:
+                return io.StringIO(bad_content)
+            # reroute any ERROR_DELIMITER write output to stdout
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.badfile)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, False)
+            self.assertFalse(pdf.parse_records())
+
+    @identify
+    def test_bad_file_with_output_and_threshold_rule(self):
+        # Provide CSV content where a detail row has different delimiter count
+        bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            # read the mocked bad file
+            if fname.endswith(self.badfile) and "r" in mode:
+                return io.StringIO(bad_content)
+            # reroute any ERROR_DELIMITER write output to stdout
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.badfile)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, False, 3)
+            self.assertFalse(pdf.parse_records())
 
 
 if __name__ == "__main__":

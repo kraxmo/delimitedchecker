@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 @purpose: This script checks for embedded pipe characters within pipe-delimited file
-          where header count != detail count and writes bad records to output file
+          where header count != detail count and optionally writes bad records to output file
 @author : Jim Kraxberger
 @created: 2021-11-16
 @updated: 2026-01-12
-@command: (UNIX)    python delimitedfilechecker.py ',' 'filename'
-          (Windows) python delimitedfilechecker.py "," "filename"
+@command: (UNIX)    python delimitedfilechecker.py ',' 'filename', True
+          (Windows) python delimitedfilechecker.py "," "filename", True
 """
 
 import argparse as ap
@@ -22,8 +22,10 @@ HELP_EPILOG = """
 The purpose of this script is to check file delimiter count mismatches (header vs. detail)
 
 Output file (if invalid) contains header and identified invalid records
-
+Output file threshold can be set to limit number of bad records reported
 """
+
+BAD_RECORD_THRESHOLD = 100
 
 # Configure logging to emit to STDOUT by default
 logging.basicConfig(
@@ -45,24 +47,33 @@ class ParseDelimitedFile:
     Parameters:
         delimiter (str): The character used to separate fields in the file.
         filename (str): The path to the file to be checked.
+        writeoutputfile (bool): Flag to indicate whether to write output file if bad records are found. Default is True.
+        badrecordthreshold (int): Threshold for bad records before stopping logging bad records.
     """
 
     ERROR_DELIMITER_FILE_SUFFIX = ".ERROR_DELIMITER"
+    BAD_RECORD_THRESHOLD = 100
 
     def __init__(
-        self, delimiter: str, filename: str, writeoutputfile: bool = True
+        self,
+        delimiter: str,
+        filename: str,
+        write_output_file: bool = True,
+        bad_record_threshold: int = BAD_RECORD_THRESHOLD,
     ) -> None:
         self.delimiter = delimiter
         self.filename = filename
+        self.write_output_file = write_output_file
+        self.bad_record_threshold = bad_record_threshold
+
         self.badrecords = dict()
-        self.writeoutputfile = writeoutputfile
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Delimiter File Checker Initialized")
         self.logger.info(f"- Delimiter: {self.delimiter}")
         self.logger.info(f"-Filename : {self.filename}")
         self.logger.info("")
 
-    def parse(self) -> bool:
+    def parse_records(self) -> bool:
         """
         Reads passed delimiter and compares delimiter count of header record (first record) to each detail record
 
@@ -82,6 +93,9 @@ class ParseDelimitedFile:
                 header_delimiter_count = record.count(self.delimiter)
                 self.save_bad_record(record, record_count, header_delimiter_count)
                 continue
+
+            if record_count % 100000 == 0:
+                self.logger.info(f"Processed {record_count} records...")
 
             detail_delimiter_count = record.count(self.delimiter)
             if header_delimiter_count != detail_delimiter_count:
@@ -104,7 +118,7 @@ class ParseDelimitedFile:
                 self.logger.info(f"- {k}: {dict_tally[k]}")
 
             self.logger.info("")
-            if self.writeoutputfile:
+            if self.write_output_file:
                 self.logger.info(f"Details: {self.filename + FILESUFFIX}")
                 self.logger.info("")
             self.logger.info("Status: BAD")
@@ -116,10 +130,15 @@ class ParseDelimitedFile:
             message.append("\n\nDelimiter Count Summary:\n")
             message.append("\n".join([f"{k}: {dict_tally[k]}" for k in dict_tally]))
             message.append("\n\nDelimiter Header and Bad Record Detail:\n")
-            for key in sorted(self.badrecords.keys()):
-                message.append(f"{key}: {self.badrecords[key]}\n")
+            for counter, key in enumerate(sorted(self.badrecords.keys())):
+                if counter < self.bad_record_threshold:
+                    message.append(f"{key}: {self.badrecords[key]}\n")
+                elif counter == self.bad_record_threshold:
+                    self.logger.info(
+                        f"Bad record count exceeded {self.bad_record_threshold} record threshold",
+                    )
 
-            if self.writeoutputfile:
+            if self.write_output_file:
                 # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
                 with open(self.filename + FILESUFFIX, "w", encoding="utf-8") as badfile:
                     badfile.write("".join(message))
@@ -150,10 +169,14 @@ class ParseDelimitedFile:
                     if len(str(record).strip()) > 0:
                         yield ctr, self.delimiter.join(record)
 
+        except FileNotFoundError:
+            self.logger.error("File not found error")
+            raise SystemExit(1)
+
         except UnicodeDecodeError as err:
             message = f"\nRecord: {ctr}\nError: {err}"
-            self.logger.error(message)
-            raise err
+            self.logger.error(message, err)
+            raise sys.exit(1)
 
     def save_bad_record(
         self, record: str, record_count: int, delimiter_count: int
@@ -173,10 +196,18 @@ if __name__ == "__main__":
     )
     parser.add_argument("filename", type=str, help="Input filename")
     parser.add_argument(
-        "-n",
-        "--donotwriteoutputfile",
+        "-w",
+        "--writeoutputfile",
         action="store_true",
         help="Do not write output file if bad records found",
+    )
+    parser.add_argument(
+        "-b",
+        "--badrecordthreshold",
+        type=int,
+        nargs="?",
+        default=BAD_RECORD_THRESHOLD,
+        help=f"Bad record threshold before stopping logging bad records (default: {BAD_RECORD_THRESHOLD})",
     )
 
     if DEBUG:
@@ -184,6 +215,8 @@ if __name__ == "__main__":
             args=[
                 ",",
                 r".\data\badfile.csv",
+                "-w",
+                "3",
             ]
         )
     else:
@@ -191,9 +224,12 @@ if __name__ == "__main__":
 
     delimiter = args.delimiter
     filename = args.filename
-    writeoutputfile = False if args.donotwriteoutputfile else True
-    pdf = ParseDelimitedFile(delimiter, filename, writeoutputfile)
-    if pdf.parse():
+    write_output_file = True if args.writeoutputfile else False
+    bad_record_threshold = args.badrecordthreshold
+    pdf = ParseDelimitedFile(
+        delimiter, filename, write_output_file, bad_record_threshold
+    )
+    if pdf.parse_records():
         sys.exit(0)
     else:
         sys.exit(1)
