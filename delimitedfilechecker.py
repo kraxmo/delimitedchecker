@@ -125,8 +125,10 @@ class ParseDelimitedFile:
 
             message = []
             message.append(f"filename : {self.filename}")
-            message.append(f"delimiter: {self.delimiter}")
-            message.append(f"fields   : {(f'{header_delimiter_count/10000:.4f}')[-4:]}")
+            message.append(f"\ndelimiter: {self.delimiter}")
+            message.append(
+                f"\nfields   : {(f'{header_delimiter_count/10000:.4f}')[-4:]}"
+            )
             message.append("\n\nDelimiter Count Summary:\n")
             message.append("\n".join([f"{k}: {dict_tally[k]}" for k in dict_tally]))
             message.append("\n\nDelimiter Header and Bad Record Detail:\n")
