@@ -49,10 +49,13 @@ class ParseDelimitedFile:
 
     ERROR_DELIMITER_FILE_SUFFIX = ".ERROR_DELIMITER"
 
-    def __init__(self, delimiter, filename) -> None:
+    def __init__(
+        self, delimiter: str, filename: str, writeoutputfile: bool = True
+    ) -> None:
         self.delimiter = delimiter
         self.filename = filename
         self.badrecords = dict()
+        self.writeoutputfile = writeoutputfile
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Delimiter File Checker Initialized")
         self.logger.info(f"- Delimiter: {self.delimiter}")
@@ -101,8 +104,9 @@ class ParseDelimitedFile:
                 self.logger.info(f"- {k}: {dict_tally[k]}")
 
             self.logger.info("")
-            self.logger.info(f"Details: {self.filename + FILESUFFIX}")
-            self.logger.info("")
+            if self.writeoutputfile:
+                self.logger.info(f"Details: {self.filename + FILESUFFIX}")
+                self.logger.info("")
             self.logger.info("Status: BAD")
 
             message = []
@@ -115,9 +119,11 @@ class ParseDelimitedFile:
             for key in sorted(self.badrecords.keys()):
                 message.append(f"{key}: {self.badrecords[key]}\n")
 
-            # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
-            with open(self.filename + FILESUFFIX, "w", encoding="utf-8") as badfile:
-                badfile.write("".join(message))
+            if self.writeoutputfile:
+                # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
+                with open(self.filename + FILESUFFIX, "w", encoding="utf-8") as badfile:
+                    badfile.write("".join(message))
+
             return False
 
         self.logger.info("Status: GOOD")
@@ -166,6 +172,12 @@ if __name__ == "__main__":
         "delimiter", type=str, default=",", help="Input file CSV delimiter"
     )
     parser.add_argument("filename", type=str, help="Input filename")
+    parser.add_argument(
+        "-n",
+        "--donotwriteoutputfile",
+        action="store_true",
+        help="Do not write output file if bad records found",
+    )
 
     if DEBUG:
         args = parser.parse_args(
@@ -179,7 +191,8 @@ if __name__ == "__main__":
 
     delimiter = args.delimiter
     filename = args.filename
-    pdf = ParseDelimitedFile(delimiter, filename)
+    writeoutputfile = False if args.donotwriteoutputfile else True
+    pdf = ParseDelimitedFile(delimiter, filename, writeoutputfile)
     if pdf.parse():
         sys.exit(0)
     else:
