@@ -59,9 +59,12 @@ class ParseDelimitedFile:
         self.logger.info(f"-Filename : {self.filename}")
         self.logger.info("")
 
-    def parse(self) -> None:
+    def parse(self) -> bool:
         """
         Reads passed delimiter and compares delimiter count of header record (first record) to each detail record
+
+        Returns:
+            bool: True if all records match header delimiter count, False otherwise.
         """
         FILESUFFIX = (
             "_"
@@ -115,10 +118,10 @@ class ParseDelimitedFile:
             # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
             with open(self.filename + FILESUFFIX, "w", encoding="utf-8") as badfile:
                 badfile.write("".join(message))
-            sys.exit(1)
+            return False
 
         self.logger.info("Status: GOOD")
-        sys.exit(0)
+        return True
 
     def read_delimited_record(self, filename: str) -> Iterable[tuple[int, str]]:
         """
@@ -177,4 +180,7 @@ if __name__ == "__main__":
     delimiter = args.delimiter
     filename = args.filename
     pdf = ParseDelimitedFile(delimiter, filename)
-    pdf.parse()
+    if pdf.parse():
+        sys.exit(0)
+    else:
+        sys.exit(1)

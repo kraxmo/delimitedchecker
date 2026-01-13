@@ -62,10 +62,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
             pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename)
-            with self.assertRaises(SystemExit) as cm:
-                pdf.parse()
-
-        self.assertEqual(cm.exception.code, 0)
+            self.assertTrue(pdf.parse())
 
     @identify
     def test_bad_file(self):
@@ -87,10 +84,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
             pdf = dfc1.ParseDelimitedFile(self.delimiter, filename)
-            with self.assertRaises(SystemExit) as cm:
-                pdf.parse()
-
-        self.assertEqual(cm.exception.code, 1)
+            self.assertFalse(pdf.parse())
 
 
 if __name__ == "__main__":
