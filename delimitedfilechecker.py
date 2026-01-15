@@ -70,7 +70,7 @@ class ParseDelimitedFile:
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Delimiter File Checker Initialized")
         self.logger.info(f"- Delimiter: {self.delimiter}")
-        self.logger.info(f"-Filename : {self.filename}")
+        self.logger.info(f"- Filename : {self.filename}")
         self.logger.info("")
 
     def parse_records(self) -> bool:
@@ -118,10 +118,9 @@ class ParseDelimitedFile:
                 self.logger.info(f"- {k}: {dict_tally[k]}")
 
             self.logger.info("")
+            self.logger.info("File is BAD")
             if self.write_output_file:
                 self.logger.info(f"Details: {self.filename + FILESUFFIX}")
-                self.logger.info("")
-            self.logger.info("Status: BAD")
 
             message = []
             message.append(f"filename : {self.filename}")
@@ -147,7 +146,7 @@ class ParseDelimitedFile:
 
             return False
 
-        self.logger.info("Status: GOOD")
+        self.logger.info("File is GOOD")
         return True
 
     def read_delimited_record(self, filename: str) -> Iterable[tuple[int, str]]:
