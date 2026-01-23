@@ -121,25 +121,6 @@ class TestDelimitedFileChecker(unittest.TestCase):
             self.assertFalse(pdf.parse_records())
 
     @identify
-    def test_bad_file_with_output_and_threshold_rule(self):
-        bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
-
-        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
-            fname = str(file)
-            if fname.endswith(self.badfile) and "r" in mode:
-                return io.StringIO(bad_content)
-            if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
-            ):
-                return _StdoutWriter()
-            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
-
-        with patch("builtins.open", side_effect=open_side_effect):
-            filename = path.join(self.directory, self.badfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, False, 3)
-            self.assertFalse(pdf.parse_records())
-
-    @identify
     def test_good_nested_delimiters_in_quoted_field(self):
         nested_content = (
             'col1,col2,col3\n"a,with,commas",val2,val3\nval4,"val,with,comma",val6'
