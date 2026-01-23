@@ -41,18 +41,17 @@ class TestDelimitedFileChecker(unittest.TestCase):
         self.directory = path.dirname(path.realpath(sys.argv[0])) + "/data"
         self.goodfile = "goodfile.csv"
         self.badfile = "badfile.csv"
+        self.goodnestedfile = "goodnested.csv"
+        self.badnestedfile = "badnested.csv"
 
     @identify
     def test_good_file_with_outputfile(self):
-        # Provide CSV content where header and detail delimiter counts match
         good_content = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            # read the mocked good file
             if fname.endswith(self.goodfile) and "r" in mode:
                 return io.StringIO(good_content)
-            # reroute any ERROR_DELIMITER write output to stdout
             if "w" in mode and fname.endswith(
                 dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
@@ -66,15 +65,12 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
     @identify
     def test_good_file_without_outputfile(self):
-        # Provide CSV content where header and detail delimiter counts match
         good_content = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            # read the mocked good file
             if fname.endswith(self.goodfile) and "r" in mode:
                 return io.StringIO(good_content)
-            # reroute any ERROR_DELIMITER write output to stdout
             if "w" in mode and fname.endswith(
                 dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
@@ -88,15 +84,12 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
     @identify
     def test_bad_file_with_outputfile(self):
-        # Provide CSV content where a detail row has different delimiter count
         bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            # read the mocked bad file
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
-            # reroute any ERROR_DELIMITER write output to stdout
             if "w" in mode and fname.endswith(
                 dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
@@ -110,15 +103,12 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
     @identify
     def test_bad_file_without_outputfile(self):
-        # Provide CSV content where a detail row has different delimiter count
         bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            # read the mocked bad file
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
-            # reroute any ERROR_DELIMITER write output to stdout
             if "w" in mode and fname.endswith(
                 dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
@@ -132,15 +122,12 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
     @identify
     def test_bad_file_with_output_and_threshold_rule(self):
-        # Provide CSV content where a detail row has different delimiter count
         bad_content = "col1,col2,col3\nval1,val2\nonlyonefield\nval4,val5\nval6"
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            # read the mocked bad file
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
-            # reroute any ERROR_DELIMITER write output to stdout
             if "w" in mode and fname.endswith(
                 dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
@@ -150,6 +137,48 @@ class TestDelimitedFileChecker(unittest.TestCase):
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
             pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, False, 3)
+            self.assertFalse(pdf.parse_records())
+
+    @identify
+    def test_good_nested_delimiters_in_quoted_field(self):
+        nested_content = (
+            'col1,col2,col3\n"a,with,commas",val2,val3\nval4,"val,with,comma",val6'
+        )
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            if fname.endswith(self.goodnestedfile) and "r" in mode:
+                return io.StringIO(nested_content)
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.goodnestedfile)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            self.assertTrue(pdf.parse_records())
+
+    @identify
+    def test_bad_nested_delimiters_in_quoted_field(self):
+        nested_content = (
+            'col1,col2,col3\n"a,with,commas",val2,val3\nval4,"val,with,comma",,val6'
+        )
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            if fname.endswith(self.badnestedfile) and "r" in mode:
+                return io.StringIO(nested_content)
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.badnestedfile)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
             self.assertFalse(pdf.parse_records())
 
 

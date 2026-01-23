@@ -88,16 +88,35 @@ class ParseDelimitedFile:
 
         dict_tally = {}
         header_delimiter_count = 0
-        for record_count, record in self.read_delimited_record(self.filename):
+        record_count = 0
+        nested_count = 0
+        max_record_length = 0
+        for record_count, record_length, record_fields in self.read_delimited_record(
+            self.filename
+        ):
+            if record_length > max_record_length:
+                max_record_length = record_length
+
+            # record_fields is the list of parsed fields
+            # join produces record string for storage/logging and compute field_count
+            record = self.delimiter.join(record_fields)
+            field_count = len(record_fields)
+
+            # count records that contain nested delimiters inside a field
+            if any(self.delimiter in f for f in record_fields):
+                nested_count += 1
+
+            # Use the number of parsed fields (not raw delimiter characters)
+            # to correctly handle nested delimiters inside quoted fields.
             if record_count == 1:
-                header_delimiter_count = record.count(self.delimiter)
+                header_delimiter_count = field_count - 1
                 self.save_bad_record(record, record_count, header_delimiter_count)
                 continue
 
             if record_count % 100000 == 0:
                 self.logger.info(f"Processed {record_count} records...")
 
-            detail_delimiter_count = record.count(self.delimiter)
+            detail_delimiter_count = field_count - 1
             if header_delimiter_count != detail_delimiter_count:
                 self.save_bad_record(record, record_count, detail_delimiter_count)
 
@@ -108,9 +127,10 @@ class ParseDelimitedFile:
                 dict_tally[detail_delimiter_count] = 1
 
         if total_bad_records := len(self.badrecords) - 1:
-            self.logger.info("Record Counts:")
-            self.logger.info(f"Bad  : {total_bad_records}")
-            self.logger.info(f"Total: {record_count}")
+            self.logger.info("Delimited Record Counts:")
+            self.logger.info(f"- Bad   : {total_bad_records}")
+            self.logger.info(f"- Nested: {nested_count}")
+            self.logger.info(f"- Total : {record_count}")
             self.logger.info("")
             self.logger.info("Delimiter Counts: (#delimiters: records)")
             self.logger.info("- " + str(header_delimiter_count) + ": 1 (header)")
@@ -123,17 +143,29 @@ class ParseDelimitedFile:
                 self.logger.info(f"Details: {self.filename + FILESUFFIX}")
 
             message = []
+            message.append("Bad Delimited File Check Report:\n")
             message.append(f"filename : {self.filename}")
             message.append(f"\ndelimiter: {self.delimiter}")
             message.append(
                 f"\nfields   : {(f'{header_delimiter_count/10000:.4f}')[-4:]}"
             )
-            message.append("\n\nDelimiter Count Summary:\n")
-            message.append("\n".join([f"{k}: {dict_tally[k]}" for k in dict_tally]))
-            message.append("\n\nDelimiter Header and Bad Record Detail:\n")
-            for counter, key in enumerate(sorted(self.badrecords.keys())):
-                if counter < self.bad_record_threshold:
-                    message.append(f"{key}: {self.badrecords[key]}\n")
+            message.append("\n\nDelimiter Record Count Summary:\n")
+            message.append("dcnt records\n")
+            message.append("---- --------\n")
+            message.append(
+                "\n".join([f"{k:0>4d}:{dict_tally[k]:0>8d}" for k in dict_tally])
+            )
+            message.append(
+                f"\n\n{'Top ' + str(self.bad_record_threshold) if record_count >= self.bad_record_threshold else 'All'} Bad Record Delimiter Detail: (* identifies header record)\n"
+            )
+            message.append(f" record#  dcnt data\n")
+            message.append(f"--------- ---- {'-'*max_record_length}\n")
+            for counter, key in enumerate(sorted(self.badrecords.keys()), start=1):
+                if counter <= self.bad_record_threshold:
+                    if counter == 1:
+                        message.append(f"{key}:*{self.badrecords[key]}\n")
+                    else:
+                        message.append(f"{key}: {self.badrecords[key]}\n")
                 elif counter == self.bad_record_threshold:
                     self.logger.info(
                         f"Bad record count exceeded {self.bad_record_threshold} record threshold",
@@ -149,16 +181,14 @@ class ParseDelimitedFile:
         self.logger.info("File is GOOD")
         return header_delimiter_count
 
-    def read_delimited_record(self, filename: str) -> Iterable[tuple[int, str]]:
+    def read_delimited_record(self, filename: str) -> Iterable[tuple[int, int, list]]:
         """
         Reads each record's count and data from passed filename using a generator pattern
         Args:
             filename: The path to the file to be read.
 
         Yields:
-            record (generator object)
-            record count (int)
-            record data (str)
+            tuple: (record_count (int), record_length (int), record_fields (list[str]))
         """
         ctr = 0
         try:
@@ -167,8 +197,14 @@ class ParseDelimitedFile:
             ) as csvfile:  # open filename with file handle
                 for record in csv.reader(csvfile, delimiter=self.delimiter):
                     ctr += 1
-                    if len(str(record).strip()) > 0:
-                        yield ctr, self.delimiter.join(record)
+                    total_field_length = sum(len(rec) for rec in record)
+                    delimiter_count = len(record) - 1
+                    record_length = total_field_length + delimiter_count
+                    if record_length > 0:
+                        # return the parsed record fields (list) so callers
+                        # can inspect individual fields (e.g. to detect
+                        # nested delimiters inside quoted fields)
+                        yield ctr, record_length, record
 
         except FileNotFoundError:
             self.logger.error("File not found error")
@@ -217,6 +253,7 @@ if __name__ == "__main__":
                 ",",
                 r".\data\badfile.csv",
                 "-w",
+                "-b",
                 "3",
             ]
         )
