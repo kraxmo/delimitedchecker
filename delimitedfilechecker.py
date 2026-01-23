@@ -6,8 +6,8 @@
 @author : Jim Kraxberger
 @created: 2021-11-16
 @updated: 2026-01-12
-@command: (UNIX)    python delimitedfilechecker.py ',' 'filename', True
-          (Windows) python delimitedfilechecker.py "," "filename", True
+@command: (UNIX)    python delimitedfilechecker.py ',' 'filename' -w
+          (Windows) python delimitedfilechecker.py "," "filename" -w
 """
 
 import argparse as ap
@@ -23,7 +23,6 @@ HELP_EPILOG = """
 The purpose of this script is to check file delimiter count mismatches (header vs. detail)
 
 Output file (if invalid) contains header and identified invalid records
-Output file threshold can be set to limit number of bad records reported
 """
 
 # Configure logging to emit to STDOUT by default
@@ -61,11 +60,13 @@ class ParseDelimitedFile:
         delimiter: str,
         filename: str,
         write_output_file: bool = True,
+        ignore_over_count: bool = False,
     ) -> None:
         self.delimiter = delimiter
         self.filename = filename
         self.write_output_file = write_output_file
-        self.delimiters_found = {}
+        self.ignore_over_count = ignore_over_count
+
         self.bad_records = {}
 
         self.logger = logging.getLogger(__name__)
@@ -84,10 +85,13 @@ class ParseDelimitedFile:
         Returns:
             int: header delimiter count if all records match header delimiter count, 0 otherwise if bad records found
         """
+        delimiters_found = {}
         header_delimiter_count = 0
         record_count = 0
         nested_delimiter_count = 0
         max_record_length = 0
+        bad_record_over_count = 0
+        bad_record_under_count = 0
         for (
             record_count,
             record_length,
@@ -118,28 +122,46 @@ class ParseDelimitedFile:
             detail_delimiter_count = field_count - 1
             if header_delimiter_count != detail_delimiter_count:
                 self.log_bad_records(record, record_count, detail_delimiter_count)
+                if detail_delimiter_count > header_delimiter_count:
+                    bad_record_over_count += 1
+                else:
+                    bad_record_under_count += 1
 
             # capture delimiter length statistics
             try:
-                self.delimiters_found[detail_delimiter_count] += 1
+                delimiters_found[detail_delimiter_count] += 1
             except KeyError:
-                self.delimiters_found[detail_delimiter_count] = 1
+                delimiters_found[detail_delimiter_count] = 1
 
+        bad_record_count = len(self.bad_records) - 1  # exclude header record
+        self.logger.info("")
         if len(self.bad_records) - 1 == 0:
             self.logger.info("File is GOOD")
+            return header_delimiter_count
+
+        if (
+            self.ignore_over_count
+            and bad_record_over_count > 0
+            and bad_record_under_count == 0
+        ):
+            self.logger.info(
+                f"File is FAIR (ignoring {bad_record_count} overcount records)"
+            )
             return header_delimiter_count
 
         self.logger.info("File is BAD")
         self.logger.info("")
         self.logger.info("Delimited Record Counts:")
-        self.logger.info(f"- Bad   : {len(self.bad_records) - 1}")
-        self.logger.info(f"- Nested: {nested_delimiter_count}")
-        self.logger.info(f"- Total : {record_count}")
+        self.logger.info(f"- Bad    : {bad_record_count}")
+        self.logger.info(f"  + Under: {bad_record_under_count}")
+        self.logger.info(f"  + Over : {bad_record_over_count}")
+        self.logger.info(f"- Nested : {nested_delimiter_count}")
+        self.logger.info(f"- Total  : {record_count}")
         self.logger.info("")
         self.logger.info("Delimiter Counts: (#delimiters: records)")
         self.logger.info("- " + str(header_delimiter_count) + ": 1 (header)")
-        for k in self.delimiters_found:
-            self.logger.info(f"- {k}: {self.delimiters_found[k]}")
+        for k in delimiters_found:
+            self.logger.info(f"- {k}: {delimiters_found[k]}")
 
         if self.write_output_file:
             self.logger.info("")
@@ -155,10 +177,7 @@ class ParseDelimitedFile:
         message.append("---- --------\n")
         message.append(
             "\n".join(
-                [
-                    f"{k:0>4d}:{self.delimiters_found[k]:0>8d}"
-                    for k in self.delimiters_found
-                ]
+                [f"{k:0>4d}:{delimiters_found[k]:0>8d}" for k in delimiters_found]
             )
         )
         message.append(
@@ -212,13 +231,13 @@ class ParseDelimitedFile:
                         yield ctr, record_length, record
 
         except FileNotFoundError:
-            self.logger.error("File not found error")
-            raise SystemExit(1)
+            self.logger.error("File not found")
+            sys.exit(1)
 
         except UnicodeDecodeError as err:
             message = f"\nRecord: {ctr}\nError: {err}"
             self.logger.error(message, err)
-            raise sys.exit(1)
+            sys.exit(1)
 
     def log_bad_records(
         self, record: str, record_count: int, delimiter_count: int
@@ -241,7 +260,13 @@ if __name__ == "__main__":
         "-w",
         "--writeoutputfile",
         action="store_true",
-        help="Do not write output file if bad records found",
+        help="Write output file if bad records found",
+    )
+    parser.add_argument(
+        "-i",
+        "--ignoreovercount",
+        action="store_true",
+        help="Ignore records with over header delimiter count (default: No)",
     )
 
     if DEBUG:
@@ -258,8 +283,9 @@ if __name__ == "__main__":
 
     delimiter = args.delimiter
     filename = args.filename
+    ignore_over_count = True if args.ignoreovercount else False
     write_output_file = True if args.writeoutputfile else False
-    pdf = ParseDelimitedFile(delimiter, filename, write_output_file)
+    pdf = ParseDelimitedFile(delimiter, filename, write_output_file, ignore_over_count)
     if pdf.parse_records():
         sys.exit(0)
     else:

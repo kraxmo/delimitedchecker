@@ -27,6 +27,7 @@ class _StdoutWriter:
 def identify(func):
     def wrapper(*args, **kwargs):
         if TestDelimitedFileChecker.VERBOSE:
+            print("\n" + "=" * 40)
             print(f"\nTEST: {func.__name__}")
         return func(*args, **kwargs)
 
@@ -43,6 +44,8 @@ class TestDelimitedFileChecker(unittest.TestCase):
         self.badfile = "badfile.csv"
         self.goodnestedfile = "goodnested.csv"
         self.badnestedfile = "badnested.csv"
+        self.badunder = "badunder.csv"
+        self.badover = "badover.csv"
 
     @identify
     def test_good_file_with_outputfile(self):
@@ -161,6 +164,65 @@ class TestDelimitedFileChecker(unittest.TestCase):
             filename = path.join(self.directory, self.badnestedfile)
             pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
             self.assertFalse(pdf.parse_records())
+
+    @identify
+    def test_bad_underfile_with_outputfile(self):
+        bad_content = "col1,col2,col3\nval1,val2\nval4,val5\nval6"
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            if fname.endswith(self.badfile) and "r" in mode:
+                return io.StringIO(bad_content)
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.badunder)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            self.assertFalse(pdf.parse_records())
+
+    @identify
+    def test_bad_overfile_with_outputfile_error(self):
+        bad_content = "col1,col2,col3\nval1,val2,val3\nval4,val5\nval6\nval7"
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            if fname.endswith(self.badfile) and "r" in mode:
+                return io.StringIO(bad_content)
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.badover)
+            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            self.assertFalse(pdf.parse_records())
+
+    @identify
+    def test_bad_overfile_with_outputfile_ignore(self):
+        bad_content = "col1,col2,col3\nval1,val2,val3\nval4,val5\nval6\nval7"
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            if fname.endswith(self.badfile) and "r" in mode:
+                return io.StringIO(bad_content)
+            if "w" in mode and fname.endswith(
+                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+            ):
+                return _StdoutWriter()
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.badover)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, filename, True, ignore_over_count=True
+            )
+            self.assertTrue(pdf.parse_records())
 
 
 if __name__ == "__main__":
