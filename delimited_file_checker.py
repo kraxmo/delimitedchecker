@@ -48,6 +48,7 @@ class ParseDelimitedFile:
         writeoutputfile (bool): Flag to indicate whether to write output file if bad records are found. Default is True.
         ignore_over_count (bool): Flag to indicate whether to ignore records with over header delimiter count. Default is False.
         expected_delimiter_count (int): The expected number of delimiters per record. Default is 0 (not used).
+        batch_id (str): An optional batch process identifier. Default is an empty string.
     """
 
     ERROR_DELIMITER_FILE_SUFFIX = ".ERROR_DELIMITER"
@@ -63,6 +64,7 @@ class ParseDelimitedFile:
         write_output_file: bool = True,
         ignore_over_count: bool = False,
         expected_delimiter_count: int = 0,
+        batch_id: str = "",
     ) -> None:
         self.delimiter = delimiter
         self.filename = filename
@@ -71,20 +73,27 @@ class ParseDelimitedFile:
         self.expected_delimiter_count = (
             0 if expected_delimiter_count <= 0 else expected_delimiter_count
         )
-
+        if batch_id:
+            self.batch_id = f"({batch_id}) "
+        else:
+            self.batch_id = ""
         self.bad_records = {}
 
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Delimiter File Checker Initialized")
-        self.logger.info(f"- Delimiter: {self.delimiter}")
-        self.logger.info(f"- Filename : {self.filename}")
         self.logger.info(
-            f"- Expected Delimiter Count: {self.expected_delimiter_count if self.expected_delimiter_count > 0 else 'N/A'}"
+            f"{self.batch_id}{self.batch_id}Delimiter File Checker Initialized"
+        )
+        self.logger.info(f"{self.batch_id}- Delimiter: {self.delimiter}")
+        self.logger.info(f"{self.batch_id}- Filename : {self.filename}")
+        self.logger.info(
+            f"{self.batch_id}- Expected Delimiter Count: {self.expected_delimiter_count if self.expected_delimiter_count > 0 else 'N/A'}"
         )
         self.logger.info(
-            f"- Write Output File if Bad Records Found: {self.write_output_file}"
+            f"{self.batch_id}- Write Output File if Bad Records Found: {self.write_output_file}"
         )
-        self.logger.info("")
+        self.logger.info(
+            f"{self.batch_id}- Ignore Over Count Records: {self.ignore_over_count}"
+        )
 
     def parse_records(self) -> int:
         """
@@ -123,11 +132,11 @@ class ParseDelimitedFile:
             # to correctly handle nested delimiters inside quoted fields.
             if record_count == 1:
                 header_delimiter_count = field_count - 1
-                self.log_bad_records(record, record_count, header_delimiter_count)
+                self.save_bad_records(record, record_count, header_delimiter_count)
                 continue
 
             if record_count % 100000 == 0:
-                self.logger.info(f"Processed {record_count} records...")
+                self.logger.info(f"{self.batch_id}Processed {record_count} records...")
 
             detail_delimiter_count = field_count - 1
             if detail_delimiter_count > header_delimiter_count:
@@ -147,7 +156,7 @@ class ParseDelimitedFile:
                 self.expected_delimiter_count > 0
                 and detail_delimiter_count != self.expected_delimiter_count
             ):
-                self.log_bad_records(record, record_count, detail_delimiter_count)
+                self.save_bad_records(record, record_count, detail_delimiter_count)
 
             # capture delimiter length statistics
             try:
@@ -156,46 +165,50 @@ class ParseDelimitedFile:
                 delimiters_found[detail_delimiter_count] = 1
 
         bad_record_count = len(self.bad_records) - 1  # exclude header record
-        self.logger.info("")
+        self.logger.info(f"{self.batch_id}")
         if len(self.bad_records) - 1 == 0:
-            self.logger.info("File is GOOD")
+            self.logger.info(f"{self.batch_id}File is GOOD")
             return header_delimiter_count
 
         if self.ignore_over_count and record_over_count > 0 and record_under_count == 0:
             self.logger.info(
-                f"File is FAIR (ignoring {bad_record_count} overcount records)"
+                f"{self.batch_id}File is FAIR (ignoring {bad_record_count} overcount records)"
             )
             return header_delimiter_count
 
-        self.logger.info(f"File is BAD")
+        self.logger.info(f"{self.batch_id}File is BAD")
         if actual_not_expected_delimiter_count:
             self.logger.info(
-                f"- Possible reasons: correct filename/wrong data or wrong file"
+                f"{self.batch_id}- Possible reasons: correct filename/wrong data or wrong file"
             )
-        self.logger.info("")
-        self.logger.info("Delimited Record Counts:")
-        self.logger.info(f"- Header : 1")
-        self.logger.info(f"- Bad    :")
-        self.logger.info(f"  + Under: {record_under_count}")
-        self.logger.info(f"  + Equal: {record_equal_count}")
-        self.logger.info(f"  + Over : {record_over_count}")
-        self.logger.info(f"- Nested : {nested_delimiter_count}")
-        self.logger.info(f"- Total  : {record_count}")
-        self.logger.info("")
-        self.logger.info("Delimiter Counts: (#delimiters: records)")
-        self.logger.info("- " + str(header_delimiter_count) + ": 1 (header)")
+        self.logger.info(f"{self.batch_id}")
+        self.logger.info(f"{self.batch_id}Delimited Record Counts:")
+        self.logger.info(f"{self.batch_id}- Header : 1")
+        self.logger.info(f"{self.batch_id}- Bad    :")
+        self.logger.info(f"{self.batch_id}  + Under: {record_under_count}")
+        self.logger.info(f"{self.batch_id}  + Equal: {record_equal_count}")
+        self.logger.info(f"{self.batch_id}  + Over : {record_over_count}")
+        self.logger.info(f"{self.batch_id}- Nested : {nested_delimiter_count}")
+        self.logger.info(f"{self.batch_id}- Total  : {record_count}")
+        self.logger.info(f"{self.batch_id}")
+        self.logger.info(f"{self.batch_id}Delimiter Counts: (#delimiters: records)")
+        self.logger.info(
+            f"{self.batch_id}- " + str(header_delimiter_count) + ": 1 (header)"
+        )
         for k in delimiters_found:
-            self.logger.info(f"- {k}: {delimiters_found[k]}")
+            self.logger.info(f"{self.batch_id}- {k}: {delimiters_found[k]}")
 
         self.logger.info("")
         if self.expected_delimiter_count:
             self.logger.info(
-                f"Expected vs. Actual Delimiter Count Mismatches: {self.expected_delimiter_count}::{actual_not_expected_delimiter_count}"
+                f"{self.batch_id}Expected vs. Actual Delimiter Count Mismatches: {self.expected_delimiter_count}::{actual_not_expected_delimiter_count}"
             )
 
         if self.write_output_file:
-            self.logger.info("")
-            self.logger.info(f"Details: {self.filename + self.FILESUFFIX}")
+            self.logger.info(f"{self.batch_id}")
+            self.logger.info(
+                f"{self.batch_id}Details: {self.filename + self.FILESUFFIX}"
+            )
 
         message = []
         message.append("Bad Delimited File Check Report:\n")
@@ -223,7 +236,7 @@ class ParseDelimitedFile:
                     message.append(f"{key}:{self.bad_records[key]}\n")
             elif counter == self.BAD_RECORD_REPORTING_THRESHOLD:
                 self.logger.info(
-                    f"Bad record count exceeded {self.BAD_RECORD_REPORTING_THRESHOLD} record threshold",
+                    f"{self.batch_id}Bad record count exceeded {self.BAD_RECORD_REPORTING_THRESHOLD} record threshold",
                 )
 
         if self.write_output_file:
@@ -251,7 +264,7 @@ class ParseDelimitedFile:
             ) as csvfile:  # open filename with file handle
                 for record in csv.reader(csvfile, delimiter=self.delimiter):
                     ctr += 1
-                    self.logger.debug(f"Record {ctr}: {record}")
+                    self.logger.debug(f"{self.batch_id}Record {ctr}: {record}")
                     total_field_length = sum(len(rec) for rec in record)
                     delimiter_count = len(record) - 1
                     record_length = total_field_length + delimiter_count
@@ -262,15 +275,15 @@ class ParseDelimitedFile:
                         yield ctr, record_length, record
 
         except FileNotFoundError:
-            self.logger.error("File not found")
+            self.logger.error(f"{self.batch_id}File not found")
             sys.exit(1)
 
         except UnicodeDecodeError as err:
-            message = f"\nRecord: {ctr}\nError: {err}"
+            message = f"\n{self.batch_id}Record: {ctr}\nError: {err}"
             self.logger.error(message, err)
             sys.exit(1)
 
-    def log_bad_records(
+    def save_bad_records(
         self, record: str, record_count: int, delimiter_count: int
     ) -> None:
         """Saves bad record with unique key counts"""
@@ -309,6 +322,9 @@ def get_args() -> argparse.Namespace:
         default=0,
         help="Expected delimiter count",
     )
+    parser.add_argument(
+        "-b", "--batchid", type=str, default="", help="Batch process identifier"
+    )
 
     if DEBUG:
         args = parser.parse_args(
@@ -316,6 +332,8 @@ def get_args() -> argparse.Namespace:
                 ",",
                 r".\data\badunder.csv",
                 "-w",
+                "-b",
+                "TESTBATCH01",
             ]
             # args=[
             #     ",",
@@ -338,9 +356,15 @@ if __name__ == "__main__":
     delimiter_count = args.delimiter_count
     ignore_over_count = True if args.ignoreovercount else False
     write_output_file = True if args.writeoutputfile else False
+    batch_id = args.batchid
 
     pdf = ParseDelimitedFile(
-        delimiter, filename, write_output_file, ignore_over_count, delimiter_count
+        delimiter,
+        filename,
+        write_output_file,
+        ignore_over_count,
+        delimiter_count,
+        batch_id,
     )
     if pdf.parse_records():
         sys.exit(0)

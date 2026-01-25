@@ -11,6 +11,8 @@ from unittest.mock import patch
 # preserve original open for fallthrough in mocks
 _original_open = _builtins.open
 
+BATCH_ID = "test1"
+
 
 class _StdoutWriter:
     def __enter__(self):
@@ -29,8 +31,8 @@ class _StdoutWriter:
 def identify(func):
     def wrapper(*args, **kwargs):
         if TestDelimitedFileChecker.VERBOSE:
-            print("\n" + "=" * 40)
-            print(f"\nTEST: {func.__name__}")
+            print("\n" + "=" * 70)
+            print(f"\n*TEST: {func.__name__}")
         return func(*args, **kwargs)
 
     return wrapper
@@ -65,7 +67,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, True)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, self.filename, True, batch_id=BATCH_ID
+            )
             self.assertTrue(pdf.parse_records())
 
     @identify
@@ -84,7 +88,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, self.filename, False)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, self.filename, False, batch_id=BATCH_ID
+            )
             self.assertTrue(pdf.parse_records())
 
     @identify
@@ -103,7 +109,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, filename, True, batch_id=BATCH_ID
+            )
             self.assertFalse(pdf.parse_records())
 
     @identify
@@ -122,7 +130,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, False)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, filename, False, batch_id=BATCH_ID
+            )
             self.assertFalse(pdf.parse_records())
 
     @identify
@@ -144,7 +154,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.goodnestedfile)
             pdf = dfc1.ParseDelimitedFile(
-                self.delimiter, filename, write_output_file=True
+                self.delimiter, filename, write_output_file=True, batch_id=BATCH_ID
             )
             self.assertTrue(pdf.parse_records())
 
@@ -166,7 +176,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badnestedfile)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, filename, True, batch_id=BATCH_ID
+            )
             self.assertFalse(pdf.parse_records())
 
     @identify
@@ -185,7 +197,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badunder)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, filename, True, batch_id=BATCH_ID
+            )
             self.assertFalse(pdf.parse_records())
 
     @identify
@@ -204,7 +218,9 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badover)
-            pdf = dfc1.ParseDelimitedFile(self.delimiter, filename, True)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter, filename, True, batch_id=BATCH_ID
+            )
             self.assertFalse(pdf.parse_records())
 
     @identify
@@ -224,7 +240,11 @@ class TestDelimitedFileChecker(unittest.TestCase):
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badover)
             pdf = dfc1.ParseDelimitedFile(
-                self.delimiter, filename, True, ignore_over_count=True
+                self.delimiter,
+                filename,
+                True,
+                ignore_over_count=True,
+                batch_id=BATCH_ID,
             )
             self.assertTrue(pdf.parse_records())
 
@@ -250,6 +270,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
                 True,
                 ignore_over_count=False,
                 expected_delimiter_count=3,
+                batch_id=BATCH_ID,
             )
             self.assertFalse(pdf.parse_records())
 
