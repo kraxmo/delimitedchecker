@@ -167,6 +167,12 @@ class ParseDelimitedFile:
         bad_record_count = len(self.bad_records) - 1  # exclude header record
         self.logger.info(f"{self.batch_id}")
         if len(self.bad_records) - 1 == 0:
+            self.logger.info(f"{self.batch_id}Delimited Record Counts:")
+            self.logger.info(
+                f"{self.batch_id}- Delimiter count: {header_delimiter_count}"
+            )
+            self.logger.info(f"{self.batch_id}- Total records  : {record_count}")
+            self.logger.info(f"")
             self.logger.info(f"{self.batch_id}File is GOOD")
             return header_delimiter_count
 
