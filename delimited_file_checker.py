@@ -83,15 +83,12 @@ class ParseDelimitedFile:
         self.logger.info("%sDelimiter File Checker Initialized", self.batch_id)
         self.logger.info("%s- Delimiter: %s", self.batch_id, self.delimiter)
         self.logger.info("%s- Filename : %s", self.batch_id, self.filename)
-        self.logger.info(
-            "%s- Expected Delimiter Count: %s",
-            self.batch_id,
-            (
-                self.expected_delimiter_count
-                if self.expected_delimiter_count > 0
-                else "N/A"
-            ),
-        )
+        if expected_delimiter_count > 0:
+            self.logger.info(
+                "%s- Expected Delimiter Count: %s",
+                self.batch_id,
+                self.expected_delimiter_count,
+            )
         self.logger.info(
             "%s- Write Output File if Bad Records Found: %s",
             self.batch_id,
@@ -235,9 +232,10 @@ class ParseDelimitedFile:
         message.append(
             f"\ndelimiter count: {(f'{header_delimiter_count/10000:.4f}')[-4:]}"
         )
-        message.append(
-            f"\nexpected  count: {(f'{self.expected_delimiter_count/10000:.4f}')[-4:]}"
-        )
+        if self.expected_delimiter_count:
+            message.append(
+                f"\nexpected  count: {(f'{self.expected_delimiter_count/10000:.4f}')[-4:]}"
+            )
         message.append("\n\nDelimiter Record Count Summary:\n")
         message.append("dcnt records\n")
         message.append("---- --------\n")
