@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-@purpose: This script checks for embedded pipe characters within pipe-delimited file
-          where header count != detail count and optionally writes bad records to output file
-@author : Jim Kraxberger
-@created: 2021-11-16
-@updated: 2026-01-12
-@command: (UNIX)    python delimitedfilechecker.py ',' 'filename' -w
-          (Windows) python delimitedfilechecker.py "," "filename" -w
-"""
-
 import argparse
 import csv
 from datetime import datetime
@@ -25,13 +13,14 @@ The purpose of this script is to check file delimiter count mismatches (header v
 Output file (if invalid) contains header and identified invalid records
 """
 
-# Configure logging to emit to STDOUT by default
-logging.basicConfig(
-    stream=sys.stdout,
-    level=logging.DEBUG if DEBUG else logging.INFO,
-    format="%(asctime)s.%(msecs)03d | %(levelname)-10s | %(funcName)-22s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# Configure logging to emit to STDOUT by default only if not already configured
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(
+        stream=sys.stdout,
+        level=logging.DEBUG if DEBUG else logging.INFO,
+        format="%(asctime)s.%(msecs)03d | %(levelname)-10s | %(funcName)-22s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
 
 class ParseDelimitedFile:
@@ -378,7 +367,6 @@ def get_args() -> argparse.Namespace:
         args = parser.parse_args()
 
     return args
-
 
 if __name__ == "__main__":
     args = get_args()
