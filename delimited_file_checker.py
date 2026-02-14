@@ -54,6 +54,7 @@ class ParseDelimitedFile:
         ignore_over_count: bool = False,
         expected_delimiter_count: int = 0,
         batch_id: str = "",
+        replacement_delimiter: str = "",
     ) -> None:
         self.delimiter = delimiter
         self.filename = filename
@@ -62,6 +63,9 @@ class ParseDelimitedFile:
         self.expected_delimiter_count = (
             0 if expected_delimiter_count <= 0 else expected_delimiter_count
         )
+        # replacement_delimiter: when provided, write a modified file where
+        # all parsed fields are joined using this delimiter (including header)
+        self.replacement_delimiter = replacement_delimiter
         if batch_id:
             self.batch_id = f"({batch_id}) "
         else:
@@ -86,6 +90,12 @@ class ParseDelimitedFile:
         self.logger.info(
             "%s- Ignore Over Count Records: %s", self.batch_id, self.ignore_over_count
         )
+        if self.replacement_delimiter:
+            self.logger.info(
+                "%s- Replacement Delimiter: %s",
+                self.batch_id,
+                self.replacement_delimiter,
+            )
 
     def parse_records(self) -> int:
         """
@@ -103,6 +113,19 @@ class ParseDelimitedFile:
         record_under_count = 0
         record_equal_count = 0
         actual_not_expected_delimiter_count = 0
+        fixed_writer = None
+        fixed_filehandle = None
+        if self.replacement_delimiter:
+            try:
+                fixed_filehandle = open(
+                    self.filename + "_FIXED", "w", newline="", encoding="utf-8"
+                )
+                fixed_writer = csv.writer(
+                    fixed_filehandle, delimiter=self.replacement_delimiter, lineterminator="\n"
+                )
+            except Exception:
+                self.logger.exception("%sFailed to open fixed output file", self.batch_id)
+
         for (
             record_count,
             record_length,
@@ -114,6 +137,12 @@ class ParseDelimitedFile:
             # record_fields is the list of parsed fields
             # join produces record string for storage/logging and compute field_count
             record = self.delimiter.join(record_fields)
+            # if replacement_delimiter was provided, write modified record (preserve header + all records)
+            if fixed_writer:
+                try:
+                    fixed_writer.writerow(record_fields)
+                except Exception:
+                    self.logger.exception("%sFailed to write fixed record %s", self.batch_id, record_count)
             field_count = len(record_fields)
 
             # count records that contain nested delimiters inside a field
@@ -157,6 +186,15 @@ class ParseDelimitedFile:
                 delimiters_found[detail_delimiter_count] = 1
 
         bad_record_count = len(self.bad_records) - 1  # exclude header record
+        # close fixed file if it was opened
+        if fixed_filehandle:
+            try:
+                fixed_filehandle.close()
+                self.logger.info(
+                    "%sFixed file written: %s", self.batch_id, self.filename + "_FIXED"
+                )
+            except Exception:
+                self.logger.exception("%sFailed closing fixed file", self.batch_id)
         self.logger.info("%s", self.batch_id)
         if len(self.bad_records) - 1 == 0:
             self.logger.info("%sDelimited Record Counts:", self.batch_id)
@@ -345,6 +383,13 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "-b", "--batchid", type=str, default="", help="Batch process identifier"
     )
+    parser.add_argument(
+        "-r",
+        "--replacement_delimiter",
+        type=str,
+        default="",
+        help="Replacement delimiter to write a _FIXED file with modified records",
+    )
 
     if DEBUG:
         args = parser.parse_args(
@@ -376,6 +421,7 @@ if __name__ == "__main__":
     ignore_over_count = True if args.ignoreovercount else False
     write_output_file = True if args.writeoutputfile else False
     batch_id = args.batchid
+    replacement_delimiter = args.replacement_delimiter if hasattr(args, 'replacement_delimiter') else ""
 
     pdf = ParseDelimitedFile(
         delimiter,
@@ -384,6 +430,7 @@ if __name__ == "__main__":
         ignore_over_count,
         delimiter_count,
         batch_id,
+        replacement_delimiter,
     )
     if pdf.parse_records():
         sys.exit(0)

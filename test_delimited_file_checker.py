@@ -274,6 +274,61 @@ class TestDelimitedFileChecker(unittest.TestCase):
             )
             self.assertFalse(pdf.parse_records())
 
+    @identify
+    def test_replacement_delimiter_writes_fixed_file(self):
+        # header + two rows
+        content = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
+        replacement = "|"
+        fixed_capture = {"f": None}
+
+        class FixedWriter:
+            def __init__(self):
+                self._parts = []
+
+            def write(self, s):
+                self._parts.append(s)
+
+            def writelines(self, lines):
+                self._parts.extend(lines)
+
+            def flush(self):
+                pass
+
+            def close(self):
+                pass
+
+            def getvalue(self):
+                return "".join(self._parts)
+
+
+        def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
+            fname = str(file)
+            if fname.endswith(self.goodfile) and "r" in mode:
+                return io.StringIO(content)
+            # capture write to _FIXED file
+            if "w" in mode and fname.endswith(self.goodfile + "_FIXED"):
+                fixed_capture["f"] = FixedWriter()
+                return fixed_capture["f"]
+            return _original_open(file, mode, encoding=encoding, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=open_side_effect):
+            filename = path.join(self.directory, self.goodfile)
+            pdf = dfc1.ParseDelimitedFile(
+                self.delimiter,
+                filename,
+                write_output_file=True,
+                batch_id=BATCH_ID,
+                replacement_delimiter=replacement,
+            )
+            # run parse; expect it to return header delimiter count (2)
+            self.assertEqual(pdf.parse_records(), 2)
+
+        # verify fixed file was written and contents use replacement delimiter
+        self.assertIsNotNone(fixed_capture["f"])
+        fixed_value = fixed_capture["f"].getvalue()
+        expected = "col1|col2|col3\nval1|val2|val3\nval4|val5|val6\n"
+        self.assertEqual(fixed_value, expected)
+
 
 if __name__ == "__main__":
     unittest.main()
