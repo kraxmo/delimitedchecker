@@ -1,6 +1,5 @@
-# delimitedchecker
-Checks files and directories for properly delimited record data
+# delimited_file_checker.py
+Checks file for properly delimited record data. It handles both simple delimited data and data containing embedded delimiters within text strings.
 
-Delimited record data is both simple delimited and does checks for embedded delimiters within text strings but has not been tested for other advanced settings (such as embedded quotes within quotes if quoted "text string").
-
-See test_delimitedfilechecker.py
+information: py delimited_file_checker.py -h
+unittest   : py -m unittest test_delimited_file_checker.py

@@ -303,15 +303,19 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            if fname.endswith(self.goodfile) and "r" in mode:
+            # support reading either the original filename or the renamed _ORIGINAL filename
+            if (fname.endswith(self.goodfile) or fname.endswith(self.goodfile + "_ORIGINAL")) and "r" in mode:
                 return io.StringIO(content)
-            # capture write to _FIXED file
-            if "w" in mode and fname.endswith(self.goodfile + "_FIXED"):
+            # capture write to file
+            if "w" in mode and fname.endswith(self.goodfile):
                 fixed_capture["f"] = FixedWriter()
                 return fixed_capture["f"]
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
-        with patch("builtins.open", side_effect=open_side_effect):
+        # patch os.replace to avoid touching the real filesystem and assert it's called
+        with patch("builtins.open", side_effect=open_side_effect), patch(
+            "delimited_file_checker.os.replace"
+        ) as mock_replace:
             filename = path.join(self.directory, self.goodfile)
             pdf = dfc1.ParseDelimitedFile(
                 self.delimiter,
@@ -322,6 +326,8 @@ class TestDelimitedFileChecker(unittest.TestCase):
             )
             # run parse; expect it to return header delimiter count (2)
             self.assertEqual(pdf.parse_records(), 2)
+            # verify rename called from original -> _ORIGINAL
+            mock_replace.assert_called_once_with(filename, filename + "_ORIGINAL")
 
         # verify fixed file was written and contents use replacement delimiter
         self.assertIsNotNone(fixed_capture["f"])

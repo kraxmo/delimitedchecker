@@ -1,5 +1,6 @@
 import argparse
 import csv
+import os
 from datetime import datetime
 import logging
 import sys
@@ -34,7 +35,7 @@ class ParseDelimitedFile:
     :Parameters:
     >>> delimiter (str): The character used to separate fields in the file.
     >>> filename (str): The path to the file to be checked.
-    >>> writeoutputfile (bool): Flag to indicate whether to write output file if bad records are found. (Default True)
+    >>> write_output_file (bool): Flag to indicate whether to write output file if bad records are found. (Default True)
     >>> ignore_over_count (bool): Flag to indicate whether to ignore records with over header delimiter count. (Default False)
     >>> expected_delimiter_count (int): The expected number of delimiters per record. (Default 0 = maximum).
     >>> batch_id (str): An optional batch process identifier. (Default '' empty string)
@@ -70,8 +71,8 @@ class ParseDelimitedFile:
             self.batch_id = f"({batch_id}) "
         else:
             self.batch_id = ""
-        self.bad_records = {}
 
+        self.bad_records = {}
         self.logger = logging.getLogger(__name__)
         self.logger.info("%sDelimiter File Checker Initialized", self.batch_id)
         self.logger.info("%s- Delimiter: %s", self.batch_id, self.delimiter)
@@ -82,6 +83,7 @@ class ParseDelimitedFile:
                 self.batch_id,
                 self.expected_delimiter_count,
             )
+
         self.logger.info(
             "%s- Write Output File if Bad Records Found: %s",
             self.batch_id,
@@ -115,22 +117,22 @@ class ParseDelimitedFile:
         actual_not_expected_delimiter_count = 0
         fixed_writer = None
         fixed_filehandle = None
+        fixed_filename = self.filename + ".FIXED"
+        input_filename = self.filename
         if self.replacement_delimiter:
+            fixed_filehandle = open(fixed_filename, "w", newline="", encoding="utf-8")
             try:
-                fixed_filehandle = open(
-                    self.filename + "_FIXED", "w", newline="", encoding="utf-8"
-                )
                 fixed_writer = csv.writer(
                     fixed_filehandle, delimiter=self.replacement_delimiter, lineterminator="\n"
                 )
-            except Exception:
-                self.logger.exception("%sFailed to open fixed output file", self.batch_id)
+            except FileNotFoundError:
+                self.logger.exception("%sFailed to open fixed output file %s", self.batch_id, fixed_filehandle)
 
         for (
             record_count,
             record_length,
             record_fields,
-        ) in self.read_delimited_record(self.filename):
+        ) in self.read_delimited_record(input_filename):
             if record_length > max_record_length:
                 max_record_length = record_length
 
@@ -142,7 +144,8 @@ class ParseDelimitedFile:
                 try:
                     fixed_writer.writerow(record_fields)
                 except Exception:
-                    self.logger.exception("%sFailed to write fixed record %s", self.batch_id, record_count)
+                    self.logger.exception("%s- Failed to write fixed record %s", self.batch_id, record_count)
+
             field_count = len(record_fields)
 
             # count records that contain nested delimiters inside a field
@@ -186,17 +189,17 @@ class ParseDelimitedFile:
                 delimiters_found[detail_delimiter_count] = 1
 
         bad_record_count = len(self.bad_records) - 1  # exclude header record
+        
         # close fixed file if it was opened
         if fixed_filehandle:
             try:
                 fixed_filehandle.close()
-                self.logger.info(
-                    "%sFixed file written: %s", self.batch_id, self.filename + "_FIXED"
-                )
             except Exception:
-                self.logger.exception("%sFailed closing fixed file", self.batch_id)
+                self.logger.exception("%s- Failed closing fixed file", self.batch_id)
+        
         self.logger.info("%s", self.batch_id)
         if len(self.bad_records) - 1 == 0:
+            # GOOD FILE: all records have same delimiter count as header record (and match expected_delimiter_count if provided)
             self.logger.info("%sDelimited Record Counts:", self.batch_id)
             self.logger.info(
                 "%s- Delimiter count: %d", self.batch_id, header_delimiter_count
@@ -204,6 +207,35 @@ class ParseDelimitedFile:
             self.logger.info("%s- Total records  : %d", self.batch_id, record_count)
             self.logger.info("")
             self.logger.info("%sFile is GOOD", self.batch_id)
+            if self.replacement_delimiter:
+                # rename original file to include _ORIGINAL suffix so we can write
+                # a new file using the original filename with the replacement delimiter
+                original_filename = self.filename + "_ORIGINAL"
+                self.logger.info("%s", self.batch_id)
+                self.logger.info(
+                    "%sOriginal '%s' delimited file renamed and replaced with '%s' delimited file", self.batch_id, self.delimiter, self.replacement_delimiter
+                )
+                try:
+                    os.replace(self.filename, original_filename)
+                except FileNotFoundError:
+                    # log but continue; read_delimited_record will raise if file missing
+                    self.logger.exception(
+                        "%s- Failed to rename original file to _ORIGINAL", self.batch_id
+                    )
+
+                self.logger.info(
+                    "%s- Original: %s", self.batch_id, original_filename
+                )
+
+                try:
+                    os.replace(fixed_filename, self.filename)
+                except FileNotFoundError:
+                    self.logger.exception("%sFailed to rename fixed file to original filename", self.batch_id)
+
+                self.logger.info(
+                    "%s- Fixed   : %s", self.batch_id, self.filename
+                )
+
             return header_delimiter_count
 
         if self.ignore_over_count and record_over_count > 0 and record_under_count == 0:
@@ -220,6 +252,7 @@ class ParseDelimitedFile:
                 "%s- Possible reasons: correct filename/wrong data or wrong file",
                 self.batch_id,
             )
+        
         self.logger.info(f"{self.batch_id}")
         self.logger.info("%sDelimited Record Counts:", self.batch_id)
         self.logger.info("%s- Header : 1", self.batch_id)
@@ -263,6 +296,7 @@ class ParseDelimitedFile:
             message.append(
                 f"\nexpected  count: {(f'{self.expected_delimiter_count/10000:.4f}')[-4:]}"
             )
+        
         message.append("\n\nDelimiter Record Count Summary:\n")
         message.append("dcnt records\n")
         message.append("---- --------\n")
@@ -358,12 +392,19 @@ def get_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "delimiter", type=str, default=",", help="Input file CSV delimiter"
+        "-d",
+        "--delimiter",
+        type=str,
+        default=",", 
+        help="Input file CSV delimiter"
     )
-    parser.add_argument("filename", type=str, help="Input filename")
+    parser.add_argument(
+        "-f",
+        "--filename",
+        type=str, help="Input filename")
     parser.add_argument(
         "-w",
-        "--writeoutputfile",
+        "--write_output_file",
         action="store_true",
         help="Write output file if bad records found",
     )
@@ -374,7 +415,7 @@ def get_args() -> argparse.Namespace:
         help="Ignore records with over header delimiter count (default: No)",
     )
     parser.add_argument(
-        "-d",
+        "-c",
         "--delimiter_count",
         type=int,
         default=0,
@@ -388,25 +429,38 @@ def get_args() -> argparse.Namespace:
         "--replacement_delimiter",
         type=str,
         default="",
-        help="Replacement delimiter to write a _FIXED file with modified records",
+        help="Rename existing file with _RAW suffex and write out data using original filename with this replacement delimiter (e.g. if input file is tab delimited but you want to convert to pipe delimiter, specify -d '\\t' -r '|'",
     )
 
     if DEBUG:
         args = parser.parse_args(
-            args=[
-                ",",
-                r".\data\badunder.csv",
-                "-w",
-                "-b",
-                "TESTBATCH01",
-            ]
             # args=[
+            #     "-d",
             #     ",",
+            #     "-f",
+            #     r".\data\badunder.csv",
+            #     "-w",
+            #     "-b",
+            #     "TESTBATCH01",
+            # ]
+            # args=[
+            #     "-d",
+            #     ",",
+            #     "-f",
             #     r".\data\goodfile.csv",
             #     "-w",
-            #     "--delimiter_count",
-            #     "3",
+            #     "-c",
+            #     "2",
             # ]
+            args=[
+                "-d",
+                ",",
+                "-f",
+                r".\data\goodfile.csv",
+                "-w",
+                "-r",
+                "~",
+            ]
         )
     else:
         args = parser.parse_args()
@@ -419,10 +473,9 @@ if __name__ == "__main__":
     filename = args.filename
     delimiter_count = args.delimiter_count
     ignore_over_count = True if args.ignoreovercount else False
-    write_output_file = True if args.writeoutputfile else False
+    write_output_file = True if args.write_output_file else False
     batch_id = args.batchid
     replacement_delimiter = args.replacement_delimiter if hasattr(args, 'replacement_delimiter') else ""
-
     pdf = ParseDelimitedFile(
         delimiter,
         filename,
