@@ -4,8 +4,7 @@ import sys
 import unittest
 import io
 import builtins as _builtins
-from unittest.mock import patch
-
+from unittest.mock import patch, call
 # python -m unittest test_async_batch_scanner.py -v
 
 # preserve original open for fallthrough in mocks
@@ -43,7 +42,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
     def setUp(self):
         self.delimiter = ","
-        self.directory = path.dirname(path.realpath(sys.argv[0])) + "/data"
+        self.directory = path.dirname(path.realpath(sys.argv[0])) + "\\data"
         self.goodfile = "goodfile.csv"
         self.badfile = "badfile.csv"
         self.goodnestedfile = "nestedgood.csv"
@@ -307,7 +306,7 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if (fname.endswith(self.goodfile) or fname.endswith(self.goodfile + "_ORIGINAL")) and "r" in mode:
                 return io.StringIO(content)
             # capture write to file
-            if "w" in mode and fname.endswith(self.goodfile):
+            if "w" in mode and fname.endswith(self.goodfile + ".FIXED"):
                 fixed_capture["f"] = FixedWriter()
                 return fixed_capture["f"]
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
@@ -326,15 +325,20 @@ class TestDelimitedFileChecker(unittest.TestCase):
             )
             # run parse; expect it to return header delimiter count (2)
             self.assertEqual(pdf.parse_records(), 2)
-            # verify rename called from original -> _ORIGINAL
-            mock_replace.assert_called_once_with(filename, filename + "_ORIGINAL")
-
-        # verify fixed file was written and contents use replacement delimiter
-        self.assertIsNotNone(fixed_capture["f"])
-        fixed_value = fixed_capture["f"].getvalue()
-        expected = "col1|col2|col3\nval1|val2|val3\nval4|val5|val6\n"
-        self.assertEqual(fixed_value, expected)
-
-
+            # verify two renames: original?_ORIGINAL then .FIXED?original
+            self.assertEqual(mock_replace.call_count, 2)
+            mock_replace.assert_has_calls(
+                [
+                    call(filename, filename + "_ORIGINAL"),
+                    call(filename + ".FIXED", filename),
+                ],
+                any_order=False,
+            )
+            # verify fixed file was written and contents use replacement delimiter
+            self.assertIsNotNone(fixed_capture["f"])
+            fixed_value = fixed_capture["f"].getvalue()
+            # csv.writer with delimiter='|' and lineterminator='\n' will yield rows joined by '|'
+            expected = "col1|col2|col3\nval1|val2|val3\nval4|val5|val6\n"
+            self.assertEqual(fixed_value, expected)
 if __name__ == "__main__":
     unittest.main()

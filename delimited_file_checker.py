@@ -101,24 +101,24 @@ class ParseDelimitedFile:
 
     def parse_records(self) -> int:
         """
-        Reads passed delimiter and compares delimiter count of header record (first record) to each detail record
+        Compares delimiter count of header record (first record) to each detail record
 
         Returns:
             int: header delimiter count if all records match header delimiter count, 0 otherwise if bad records found
         """
+        actual_not_expected_delimiter_count = 0
         delimiters_found = {}
+        fixed_writer = None
+        fixed_filehandle = None
+        fixed_filename = self.filename + ".FIXED"
         header_delimiter_count = 0
+        input_filename = self.filename
         record_count = 0
         nested_delimiter_count = 0
         max_record_length = 0
         record_over_count = 0
         record_under_count = 0
         record_equal_count = 0
-        actual_not_expected_delimiter_count = 0
-        fixed_writer = None
-        fixed_filehandle = None
-        fixed_filename = self.filename + ".FIXED"
-        input_filename = self.filename
         if self.replacement_delimiter:
             fixed_filehandle = open(fixed_filename, "w", newline="", encoding="utf-8")
             try:
@@ -128,6 +128,10 @@ class ParseDelimitedFile:
             except FileNotFoundError:
                 self.logger.exception("%sFailed to open fixed output file %s", self.batch_id, fixed_filehandle)
 
+        # read_delimited_record returns parsed record fields as list, so we can inspect field count and field values 
+        # (e.g. to detect nested delimiters inside quoted fields) 
+        # rather than just raw record string which would require counting delimiter characters 
+        # and would not allow us to detect nested delimiters inside quoted fields
         for (
             record_count,
             record_length,
@@ -139,6 +143,7 @@ class ParseDelimitedFile:
             # record_fields is the list of parsed fields
             # join produces record string for storage/logging and compute field_count
             record = self.delimiter.join(record_fields)
+
             # if replacement_delimiter was provided, write modified record (preserve header + all records)
             if fixed_writer:
                 try:
@@ -162,6 +167,7 @@ class ParseDelimitedFile:
             if record_count % 100000 == 0:
                 self.logger.info(f"{self.batch_id}Processed {record_count} records...")
 
+            # Tally records with under, over and equal delimiter counts compared to header record
             detail_delimiter_count = field_count - 1
             if detail_delimiter_count > header_delimiter_count:
                 record_over_count += 1
@@ -170,12 +176,15 @@ class ParseDelimitedFile:
             else:
                 record_under_count += 1
 
+            # if expected_delimiter_count provided, tally records that do not match expected_delimiter_count
             if (
                 self.expected_delimiter_count > 0
                 and detail_delimiter_count != self.expected_delimiter_count
             ):
                 actual_not_expected_delimiter_count += 1
 
+            # if record delimiter count does not match header record delimiter count and/or expected_delimiter_count (if provided), 
+            # save record as bad record for reporting
             if (header_delimiter_count != detail_delimiter_count) or (
                 self.expected_delimiter_count > 0
                 and detail_delimiter_count != self.expected_delimiter_count
@@ -198,8 +207,9 @@ class ParseDelimitedFile:
                 self.logger.exception("%s- Failed closing fixed file", self.batch_id)
         
         self.logger.info("%s", self.batch_id)
-        if len(self.bad_records) - 1 == 0:
-            # GOOD FILE: all records have same delimiter count as header record (and match expected_delimiter_count if provided)
+
+        # GOOD FILE: all records have same delimiter count as header record (and match expected_delimiter_count if provided)        
+        if bad_record_count == 0:
             self.logger.info("%sDelimited Record Counts:", self.batch_id)
             self.logger.info(
                 "%s- Delimiter count: %d", self.batch_id, header_delimiter_count
@@ -207,6 +217,10 @@ class ParseDelimitedFile:
             self.logger.info("%s- Total records  : %d", self.batch_id, record_count)
             self.logger.info("")
             self.logger.info("%sFile is GOOD", self.batch_id)
+
+            # if replacement_delimiter provided, we have already written out the modified file with replacement delimiter, 
+            # so now we can rename files to replace original file with modified file with replacement delimiter 
+            # and rename original file with _ORIGINAL suffix
             if self.replacement_delimiter:
                 # rename original file to include _ORIGINAL suffix so we can write
                 # a new file using the original filename with the replacement delimiter
@@ -238,6 +252,10 @@ class ParseDelimitedFile:
 
             return header_delimiter_count
 
+        # FAIR FILE: all records have at least the same delimiter count as header record (and match expected_delimiter_count if provided)
+        # This means we have some records with under header delimiter count but no records with over header delimiter count, 
+        # so we can consider this a FAIR file with some bad records that should be investigated but not necessarily rejected for processing 
+        # (e.g. if filename is correct and we have some bad records but no good records, we may want to process the file and handle bad records in downstream processing rather than rejecting the file outright)
         if self.ignore_over_count and record_over_count > 0 and record_under_count == 0:
             self.logger.info(
                 "%sFile is FAIR (ignoring %d overcount records)",
@@ -246,6 +264,7 @@ class ParseDelimitedFile:
             )
             return header_delimiter_count
 
+        # BAD FILE: some/all records have different delimiter count as header record and/or do not match expected_delimiter_count if provided
         self.logger.info("%sFile is BAD", self.batch_id)
         if actual_not_expected_delimiter_count:
             self.logger.info(
@@ -348,6 +367,9 @@ class ParseDelimitedFile:
 
         Yields:
             tuple: (record_count (int), record_length (int), record_fields (list[str]))
+                where record_count is the sequential number of the record (starting at 1),
+                record_length is the total length of the record in characters (including delimiters),
+                and record_fields is the list of parsed fields for the record.
         """
         ctr = 0
         try:
@@ -358,12 +380,10 @@ class ParseDelimitedFile:
                     ctr += 1
                     self.logger.debug(f"{self.batch_id}Record {ctr}: {record}")
                     total_field_length = sum(len(rec) for rec in record)
-                    delimiter_count = len(record) - 1
-                    record_length = total_field_length + delimiter_count
-                    if record_length > 0:
-                        # return the parsed record fields (list) so callers
-                        # can inspect individual fields (e.g. to detect
-                        # nested delimiters inside quoted fields)
+                    delimiter_counter = len(record) - 1
+                    record_length = total_field_length + delimiter_counter
+                    if record_length:
+                        # return the parsed record fields (list) so callers can inspect individual fields (e.g. to detect nested delimiters inside quoted fields)
                         yield ctr, record_length, record
 
         except FileNotFoundError:
