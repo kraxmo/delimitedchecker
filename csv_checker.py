@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Delimited File Checker
+CSV Checker
 This script checks for delimiter count mismatches between header and detail records in a delimited file (e.g. CSV, TSV).
 """
 

@@ -1,10 +1,13 @@
-import delimited_file_checker as dfc1
+#!/usr/bin/env python3
+
+import builtins as _builtins
+import io
 from os import path
 import sys
 import unittest
-import io
-import builtins as _builtins
 from unittest.mock import patch, call
+import csv_checker as cc1
+
 # python -m unittest test_async_batch_scanner.py -v
 
 # preserve original open for fallthrough in mocks
@@ -29,7 +32,7 @@ class _StdoutWriter:
 
 def identify(func):
     def wrapper(*args, **kwargs):
-        if TestDelimitedFileChecker.VERBOSE:
+        if CSVChecker.VERBOSE:
             print("\n" + "=" * 70)
             print(f"\n*TEST: {func.__name__}")
         return func(*args, **kwargs)
@@ -37,7 +40,7 @@ def identify(func):
     return wrapper
 
 
-class TestDelimitedFileChecker(unittest.TestCase):
+class CSVChecker(unittest.TestCase):
     VERBOSE = True
 
     def setUp(self):
@@ -59,14 +62,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.goodfile) and "r" in mode:
                 return io.StringIO(good_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, self.filename, True, batch_id=BATCH_ID
             )
             self.assertTrue(pdf.parse_records())
@@ -80,14 +83,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.goodfile) and "r" in mode:
                 return io.StringIO(good_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, self.filename, False, batch_id=BATCH_ID
             )
             self.assertTrue(pdf.parse_records())
@@ -101,14 +104,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, filename, True, batch_id=BATCH_ID
             )
             self.assertFalse(pdf.parse_records())
@@ -122,14 +125,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, filename, False, batch_id=BATCH_ID
             )
             self.assertFalse(pdf.parse_records())
@@ -145,14 +148,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.goodnestedfile) and "r" in mode:
                 return io.StringIO(nested_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.goodnestedfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, filename, write_output_file=True, batch_id=BATCH_ID
             )
             self.assertTrue(pdf.parse_records())
@@ -168,14 +171,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.badnestedfile) and "r" in mode:
                 return io.StringIO(nested_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badnestedfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, filename, True, batch_id=BATCH_ID
             )
             self.assertFalse(pdf.parse_records())
@@ -189,14 +192,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badunder)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, filename, True, batch_id=BATCH_ID
             )
             self.assertFalse(pdf.parse_records())
@@ -210,14 +213,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badover)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter, filename, True, batch_id=BATCH_ID
             )
             self.assertFalse(pdf.parse_records())
@@ -231,14 +234,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.badfile) and "r" in mode:
                 return io.StringIO(bad_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             filename = path.join(self.directory, self.badover)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter,
                 filename,
                 True,
@@ -256,14 +259,14 @@ class TestDelimitedFileChecker(unittest.TestCase):
             if fname.endswith(self.goodfile) and "r" in mode:
                 return io.StringIO(good_content)
             if "w" in mode and fname.endswith(
-                dfc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
+                cc1.ParseDelimitedFile.ERROR_DELIMITER_FILE_SUFFIX
             ):
                 return _StdoutWriter()
             return _original_open(file, mode, encoding=encoding, *args, **kwargs)
 
         with patch("builtins.open", side_effect=open_side_effect):
             self.filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter,
                 self.filename,
                 True,
@@ -313,10 +316,10 @@ class TestDelimitedFileChecker(unittest.TestCase):
 
         # patch os.replace to avoid touching the real filesystem and assert it's called
         with patch("builtins.open", side_effect=open_side_effect), patch(
-            "delimited_file_checker.os.replace"
+            "csv_checker.os.replace"
         ) as mock_replace:
             filename = path.join(self.directory, self.goodfile)
-            pdf = dfc1.ParseDelimitedFile(
+            pdf = cc1.ParseDelimitedFile(
                 self.delimiter,
                 filename,
                 write_output_file=True,
