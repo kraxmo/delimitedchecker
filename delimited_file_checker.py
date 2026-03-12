@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+
+"""
+Delimited File Checker
+This script checks for delimiter count mismatches between header and detail records in a delimited file (e.g. CSV, TSV).
+"""
+
 import argparse
 import csv
 import os
@@ -161,6 +168,7 @@ class ParseDelimitedFile:
             # to correctly handle nested delimiters inside quoted fields.
             if record_count == 1:
                 header_delimiter_count = field_count - 1
+                delimiters_found[header_delimiter_count] = 1
                 self.save_bad_records(record, record_count, header_delimiter_count)
                 continue
 
@@ -265,6 +273,8 @@ class ParseDelimitedFile:
             return header_delimiter_count
 
         # BAD FILE: some/all records have different delimiter count as header record and/or do not match expected_delimiter_count if provided
+
+        # Logging details for bad file
         self.logger.info("%sFile is BAD", self.batch_id)
         if actual_not_expected_delimiter_count:
             self.logger.info(
@@ -285,7 +295,8 @@ class ParseDelimitedFile:
         self.logger.info("%sDelimiter Counts: (#delimiters: records)", self.batch_id)
         self.logger.info("%s- %d: 1 (header)", self.batch_id, header_delimiter_count)
         for k in delimiters_found:
-            self.logger.info("%s- %d: %d", self.batch_id, k, delimiters_found[k])
+            if k != header_delimiter_count:
+                self.logger.info("%s- %d: %d", self.batch_id, k, delimiters_found[k])
 
         self.logger.info("")
         if (self.expected_delimiter_count > 0) and (
@@ -298,60 +309,60 @@ class ParseDelimitedFile:
                 actual_not_expected_delimiter_count,
             )
 
+        # Write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
         if self.write_output_file:
-            self.logger.info("%s", self.batch_id)
             self.logger.info(
                 "%sDetails: %s", self.batch_id, self.filename + self.FILESUFFIX
             )
 
-        message = []
-        message.append("Bad Delimited File Check Report:\n")
-        message.append(f"filename       : {self.filename}")
-        message.append(f"\ndelimiter value: {self.delimiter}")
-        message.append(
-            f"\ndelimiter count: {(f'{header_delimiter_count/10000:.4f}')[-4:]}"
-        )
-        if self.expected_delimiter_count:
+            # Build message for bad file summary and detail report (including header record)
+            message = []
+            message.append("Bad Delimited File Check Report:\n")
+            message.append(f"filename       : {self.filename}")
+            message.append(f"\ndelimiter value: {self.delimiter}")
             message.append(
-                f"\nexpected  count: {(f'{self.expected_delimiter_count/10000:.4f}')[-4:]}"
+                f"\ndelimiter count: {(f'{header_delimiter_count/10000:.4f}')[-4:]}"
             )
-        
-        message.append("\n\nDelimiter Record Count Summary:\n")
-        message.append("dcnt records\n")
-        message.append("---- --------\n")
-        message.append(
-            "\n".join(
-                [f"{k:0>4d}:{delimiters_found[k]:0>8d}" for k in delimiters_found]
-            )
-        )
-
-        if (self.expected_delimiter_count > 0) and (
-            self.expected_delimiter_count != header_delimiter_count
-        ):
+            if self.expected_delimiter_count:
+                message.append(
+                    f"\nexpected  count: {(f'{self.expected_delimiter_count/10000:.4f}')[-4:]}"
+                )
+            
+            message.append("\n\nDelimiter Record Count Summary:\n")
+            message.append("dcnt records\n")
+            message.append("---- --------\n")
+            message.append(f"{header_delimiter_count:0>4d} {delimiters_found[header_delimiter_count]:0>8d} (header)\n")
             message.append(
-                f"\n\n*PROBLEM Mismatched Delimiters: Expected {self.expected_delimiter_count} but found {actual_not_expected_delimiter_count} records with different delimiter counts"
+                "\n".join(
+                    [f"{k:0>4d}:{delimiters_found[k]:0>8d}" for k in delimiters_found if k != header_delimiter_count]
+                )
             )
 
-        message.append(
-            f"\n\n{'Top ' + str(self.BAD_RECORD_REPORTING_THRESHOLD) if record_count >= self.BAD_RECORD_REPORTING_THRESHOLD else 'All'} Bad Record Delimiter Detail:\n"
-        )
-        message.append(f" record#  dcnt data\n")
-        message.append(f"--------- ---- {'-'*max_record_length}\n")
-        for counter, key in enumerate(sorted(self.bad_records.keys()), start=1):
-            if counter <= self.BAD_RECORD_REPORTING_THRESHOLD:
-                if counter == 1:
-                    message.append(f"{key}:{self.bad_records[key]} (header)\n")
-                else:
-                    message.append(f"{key}:{self.bad_records[key]}\n")
-            elif counter == self.BAD_RECORD_REPORTING_THRESHOLD:
-                self.logger.info(
-                    "%sBad record count exceeded %d record threshold",
-                    self.batch_id,
-                    self.BAD_RECORD_REPORTING_THRESHOLD,
+            if (self.expected_delimiter_count > 0) and (
+                self.expected_delimiter_count != header_delimiter_count
+            ):
+                message.append(
+                    f"\n\n*PROBLEM Mismatched Delimiters: Expected {self.expected_delimiter_count} but found {actual_not_expected_delimiter_count} records with different delimiter counts"
                 )
 
-        if self.write_output_file:
-            # write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
+            message.append(
+                f"\n\n{'Top ' + str(self.BAD_RECORD_REPORTING_THRESHOLD) if record_count >= self.BAD_RECORD_REPORTING_THRESHOLD else 'All'} Bad Record Delimiter Detail:\n"
+            )
+            message.append(f" record#  dcnt data\n")
+            message.append(f"--------- ---- {'-'*max_record_length}\n")
+            for counter, key in enumerate(sorted(self.bad_records.keys()), start=1):
+                if counter <= self.BAD_RECORD_REPORTING_THRESHOLD:
+                    if counter == 1:
+                        message.append(f"{key}:{self.bad_records[key]} (header)\n")
+                    else:
+                        message.append(f"{key}:{self.bad_records[key]}\n")
+                elif counter == self.BAD_RECORD_REPORTING_THRESHOLD:
+                    self.logger.info(
+                        "%sBad record count exceeded %d record threshold",
+                        self.batch_id,
+                        self.BAD_RECORD_REPORTING_THRESHOLD,
+                    )
+
             with open(
                 self.filename + self.FILESUFFIX, "w", encoding="utf-8"
             ) as badfile:
@@ -454,15 +465,13 @@ def get_args() -> argparse.Namespace:
 
     if DEBUG:
         args = parser.parse_args(
-            # args=[
-            #     "-d",
-            #     ",",
-            #     "-f",
-            #     r".\data\badunder.csv",
-            #     "-w",
-            #     "-b",
-            #     "TESTBATCH01",
-            # ]
+            args=[
+                "-d",
+                "|",
+                "-f",
+                r".\data\badfile2",
+                "-w",
+            ]
             # args=[
             #     "-d",
             #     ",",
@@ -472,15 +481,15 @@ def get_args() -> argparse.Namespace:
             #     "-c",
             #     "2",
             # ]
-            args=[
-                "-d",
-                ",",
-                "-f",
-                r".\data\goodfile.csv",
-                "-w",
-                "-r",
-                "~",
-            ]
+            # args=[
+            #     "-d",
+            #     ",",
+            #     "-f",
+            #     r".\data\goodfile.csv",
+            #     "-w",
+            #     "-r",
+            #     "~",
+            # ]
         )
     else:
         args = parser.parse_args()
