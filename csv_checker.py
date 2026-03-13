@@ -18,7 +18,7 @@ HELP_EPILOG = """
 
 The purpose of this script is to check file delimiter count mismatches (header vs. detail)
 
-Output file (if invalid) contains header and identified invalid records
+Optional output file (if invalid) contains header and identified invalid records
 """
 
 # Configure logging to emit to STDOUT by default only if not already configured
@@ -71,14 +71,11 @@ class ParseDelimitedFile:
         self.expected_delimiter_count = (
             0 if expected_delimiter_count <= 0 else expected_delimiter_count
         )
+        
         # replacement_delimiter: when provided, write a modified file where
         # all parsed fields are joined using this delimiter (including header)
         self.replacement_delimiter = replacement_delimiter
-        if batch_id:
-            self.batch_id = f"({batch_id}) "
-        else:
-            self.batch_id = ""
-
+        self.batch_id = f"({batch_id}) " if batch_id else ""
         self.bad_records = {}
         self.logger = logging.getLogger(__name__)
         self.logger.info("%sDelimiter File Checker Initialized", self.batch_id)
@@ -135,7 +132,8 @@ class ParseDelimitedFile:
             except FileNotFoundError:
                 self.logger.exception("%sFailed to open fixed output file %s", self.batch_id, fixed_filehandle)
 
-        # read_delimited_record returns parsed record fields as list, so we can inspect field count and field values 
+        # read_delimited_record returns parsed record fields as list, 
+        # so we can inspect field count and field values 
         # (e.g. to detect nested delimiters inside quoted fields) 
         # rather than just raw record string which would require counting delimiter characters 
         # and would not allow us to detect nested delimiters inside quoted fields
@@ -172,6 +170,7 @@ class ParseDelimitedFile:
                 self.save_bad_records(record, record_count, header_delimiter_count)
                 continue
 
+            # Log progress every 100,000 records to provide visibility into processing of large files
             if record_count % 100000 == 0:
                 self.logger.info(f"{self.batch_id}Processed {record_count} records...")
 
@@ -211,8 +210,10 @@ class ParseDelimitedFile:
         if fixed_filehandle:
             try:
                 fixed_filehandle.close()
-            except Exception:
+            except IOError:
                 self.logger.exception("%s- Failed closing fixed file", self.batch_id)
+            except ValueError:
+                self.logger.exception("%s- Fixed file already closed", self.batch_id)
         
         self.logger.info("%s", self.batch_id)
 
@@ -273,7 +274,6 @@ class ParseDelimitedFile:
             return header_delimiter_count
 
         # BAD FILE: some/all records have different delimiter count as header record and/or do not match expected_delimiter_count if provided
-
         # Logging details for bad file
         self.logger.info("%sFile is BAD", self.batch_id)
         if actual_not_expected_delimiter_count:
@@ -415,7 +415,7 @@ class ParseDelimitedFile:
 
 def get_args() -> argparse.Namespace:
     """
-    Setup and run delimited directory checker
+    Setup and parse command line arguments
     """
     parser = argparse.ArgumentParser(
         description="Check file delimiter counts to verify detail vs. header",
@@ -496,7 +496,8 @@ def get_args() -> argparse.Namespace:
 
     return args
 
-if __name__ == "__main__":
+
+def main() -> None:
     args = get_args()
     delimiter = args.delimiter
     filename = args.filename
@@ -518,3 +519,7 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
