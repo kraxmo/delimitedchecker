@@ -10,6 +10,7 @@ import csv
 from datetime import datetime
 import logging
 import shutil
+import os
 import sys
 from typing import Iterable
 
@@ -18,7 +19,7 @@ HELP_EPILOG = """
 
 The purpose of this script is to check file delimiter count mismatches (header vs. detail)
 
-Optional output file (if invalid) contains header and identified invalid records
+Optional output file (if invalid) [use option -w] contains header and identified invalid records
 """
 
 # Configure logging to emit to STDOUT by default only if not already configured
@@ -63,6 +64,7 @@ class ParseDelimitedFile:
         expected_delimiter_count: int = 0,
         batch_id: str = "",
         replacement_delimiter: str = "",
+        keep_original: bool = False,
     ) -> None:
         self.delimiter = delimiter
         self.filename = filename
@@ -75,6 +77,8 @@ class ParseDelimitedFile:
         # replacement_delimiter: when provided, write a modified file where
         # all parsed fields are joined using this delimiter (including header)
         self.replacement_delimiter = replacement_delimiter
+        self.keep_original = keep_original
+        
         self.batch_id = f"({batch_id}) " if batch_id else ""
         self.bad_records = {}
         self.logger = logging.getLogger(__name__)
@@ -101,6 +105,12 @@ class ParseDelimitedFile:
                 "%s- Replacement Delimiter: %s",
                 self.batch_id,
                 self.replacement_delimiter,
+            )
+        if self.keep_original:
+            self.logger.info(
+                "%s- Keep Original File: %s",
+                self.batch_id,
+                self.keep_original,
             )
 
     def parse_records(self) -> int:
@@ -258,6 +268,15 @@ class ParseDelimitedFile:
                 self.logger.info(
                     "%s- Fixed   : %s", self.batch_id, self.filename
                 )
+                if self.keep_original:
+                    self.logger.info(
+                        "%s- Original file with _ORIGINAL suffix retained: %s", self.batch_id, original_filename
+                    )
+                else:
+                    try:
+                        os.remove(original_filename + self.FILESUFFIX)  # if not keeping original, remove original file with _ORIGINAL suffix since we have replaced original file with new file with replacement delimiter
+                    except FileNotFoundError:
+                        self.logger.exception("%sFailed to remove original file with FILESUFFIX: %s", self.batch_id, original_filename + self.FILESUFFIX)
 
             return header_delimiter_count
 
@@ -460,7 +479,13 @@ def get_args() -> argparse.Namespace:
         "--replacement_delimiter",
         type=str,
         default="",
-        help="Rename existing file with _RAW suffex and write out data using original filename with this replacement delimiter (e.g. if input file is tab delimited but you want to convert to pipe delimiter, specify -d '\\t' -r '|'",
+        help="Rename existing file using replacement delimiter (e.g. if input file is tab delimited but you want to convert to pipe delimiter, specify -d '\\t' -r '|'",
+    )
+    parser.add_argument(
+        "-k",
+        "--keep_original",
+        action="store_true",
+        help="Keep original file with _ORIGINAL suffix if replacement delimiter specified (default: No)",
     )
 
     if DEBUG:
@@ -506,6 +531,7 @@ def main() -> None:
     write_output_file = True if args.write_output_file else False
     batch_id = args.batchid
     replacement_delimiter = args.replacement_delimiter if hasattr(args, 'replacement_delimiter') else ""
+    keep_original = args.keep_original if hasattr(args, 'keep_original') else False
     pdf = ParseDelimitedFile(
         delimiter,
         filename,
@@ -514,6 +540,7 @@ def main() -> None:
         delimiter_count,
         batch_id,
         replacement_delimiter,
+        keep_original,
     )
     if pdf.parse_records():
         sys.exit(0)
