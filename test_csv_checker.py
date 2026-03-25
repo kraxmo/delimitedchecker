@@ -316,7 +316,7 @@ class CSVChecker(unittest.TestCase):
 
         # patch os.replace to avoid touching the real filesystem and assert it's called
         with patch("builtins.open", side_effect=open_side_effect), patch(
-            "csv_checker.os.replace"
+            "csv_checker.shutil.move"
         ) as mock_replace:
             filename = path.join(self.directory, self.goodfile)
             pdf = cc1.ParseDelimitedFile(
