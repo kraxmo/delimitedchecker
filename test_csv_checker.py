@@ -277,7 +277,7 @@ class CSVChecker(unittest.TestCase):
             self.assertFalse(pdf.parse_records())
 
     @identify
-    def test_replacement_delimiter_writes_fixed_file(self):
+    def test_replacement_delimiter_writes_fixed_file_keeps_original(self):
         # header + two rows
         content = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
         replacement = "|"
@@ -305,8 +305,8 @@ class CSVChecker(unittest.TestCase):
 
         def open_side_effect(file, mode="r", encoding=None, *args, **kwargs):
             fname = str(file)
-            # support reading either the original filename or the renamed _ORIGINAL filename
-            if (fname.endswith(self.goodfile) or fname.endswith(self.goodfile + "_ORIGINAL")) and "r" in mode:
+            # support reading either the original filename or the renamed .ORIGINAL filename
+            if (fname.endswith(self.goodfile) or fname.endswith(self.goodfile + ".ORIGINAL")) and "r" in mode:
                 return io.StringIO(content)
             # capture write to file
             if "w" in mode and fname.endswith(self.goodfile + ".FIXED"):
@@ -325,14 +325,15 @@ class CSVChecker(unittest.TestCase):
                 write_output_file=True,
                 batch_id=BATCH_ID,
                 replacement_delimiter=replacement,
+                keep_original=True,
             )
             # run parse; expect it to return header delimiter count (2)
             self.assertEqual(pdf.parse_records(), 2)
-            # verify two renames: original?_ORIGINAL then .FIXED?original
+            # verify two renames: original? .ORIGINAL then .FIXED?original
             self.assertEqual(mock_replace.call_count, 2)
             mock_replace.assert_has_calls(
                 [
-                    call(filename, filename + "_ORIGINAL"),
+                    call(filename, filename + ".ORIGINAL"),
                     call(filename + ".FIXED", filename),
                 ],
                 any_order=False,

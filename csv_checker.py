@@ -22,16 +22,6 @@ The purpose of this script is to check file delimiter count mismatches (header v
 Optional output file (if invalid) [use option -w] contains header and identified invalid records
 """
 
-# Configure logging to emit to STDOUT by default only if not already configured
-if not logging.getLogger().hasHandlers():
-    logging.basicConfig(
-        stream=sys.stdout,
-        level=logging.DEBUG if DEBUG else logging.INFO,
-        format="%(asctime)s.%(msecs)03d | %(levelname)-10s | %(funcName)-22s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-
 class ParseDelimitedFile:
     r"""
     A class that parses passed filename by delimiter to verify header record delimiter counts
@@ -81,7 +71,8 @@ class ParseDelimitedFile:
         
         self.batch_id = f"({batch_id}) " if batch_id else ""
         self.bad_records = {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = self.logging_setup()
+
         self.logger.info("%sDelimiter File Checker Initialized", self.batch_id)
         self.logger.info("%s- Delimiter: %s", self.batch_id, self.delimiter)
         self.logger.info("%s- Filename : %s", self.batch_id, self.filename)
@@ -112,6 +103,22 @@ class ParseDelimitedFile:
                 self.batch_id,
                 self.keep_original,
             )
+
+    def logging_setup(self) -> None:
+        """
+        Sets up logging configuration for the class.
+        """
+        logger = logging.getLogger(__name__)
+        if logger.hasHandlers():
+            return logger
+        
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+        formatter = logging.Formatter("%(asctime)s.%(msecs)03d | %(levelname)-10s | %(funcName)-22s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        return logger
+        
 
     def parse_records(self) -> int:
         """
@@ -239,21 +246,21 @@ class ParseDelimitedFile:
 
             # if replacement_delimiter provided, we have already written out the modified file with replacement delimiter, 
             # so now we can rename files to replace original file with modified file with replacement delimiter 
-            # and rename original file with _ORIGINAL suffix
+            # and rename original file with .ORIGINAL suffix
             if self.replacement_delimiter:
-                # rename original file to include _ORIGINAL suffix so we can write
+                # rename original file to include .ORIGINAL suffix so we can write
                 # a new file using the original filename with the replacement delimiter
-                original_filename = self.filename + "_ORIGINAL"
+                original_filename = self.filename + ".ORIGINAL"
                 self.logger.info("%s", self.batch_id)
                 self.logger.info(
                     "%sOriginal '%s' delimited file renamed and replaced with '%s' delimited file", self.batch_id, self.delimiter, self.replacement_delimiter
                 )
                 try:
-                    shutil.move(self.filename, original_filename)   # rename original file to include _ORIGINAL suffix so we can write a new file using the original filename with the replacement delimiter
+                    shutil.move(self.filename, original_filename)   # rename original file to include .ORIGINAL suffix so we can write a new file using the original filename with the replacement delimiter
                 except FileNotFoundError:
                     # log but continue; read_delimited_record will raise if file missing
                     self.logger.exception(
-                        "%s- Failed to rename original file to _ORIGINAL", self.batch_id
+                        "%s- Failed to rename original file to .ORIGINAL", self.batch_id
                     )
 
                 self.logger.info(
@@ -270,11 +277,11 @@ class ParseDelimitedFile:
                 )
                 if self.keep_original:
                     self.logger.info(
-                        "%s- Original file with _ORIGINAL suffix retained: %s", self.batch_id, original_filename
+                        "%s- Original file with .ORIGINAL suffix retained: %s", self.batch_id, original_filename
                     )
                 else:
                     try:
-                        os.remove(original_filename + self.FILESUFFIX)  # if not keeping original, remove original file with _ORIGINAL suffix since we have replaced original file with new file with replacement delimiter
+                        os.remove(original_filename + self.FILESUFFIX)  # if not keeping original, remove original file with .ORIGINAL suffix since we have replaced original file with new file with replacement delimiter
                     except FileNotFoundError:
                         self.logger.exception("%sFailed to remove original file with FILESUFFIX: %s", self.batch_id, original_filename + self.FILESUFFIX)
 
@@ -485,7 +492,7 @@ def get_args() -> argparse.Namespace:
         "-k",
         "--keep_original",
         action="store_true",
-        help="Keep original file with _ORIGINAL suffix if replacement delimiter specified (default: No)",
+        help="Keep original file with .ORIGINAL suffix if replacement delimiter specified (default: No)",
     )
 
     if DEBUG:
