@@ -9,9 +9,11 @@ import argparse
 import csv
 from datetime import datetime
 import logging
+from logging import Handler, LogRecord
 import shutil
 import os
 import sys
+import typing
 from typing import Iterable
 
 DEBUG = False
@@ -21,6 +23,18 @@ The purpose of this script is to check file delimiter count mismatches (header v
 
 Optional output file (if invalid) [use option -w] contains header and identified invalid records
 """
+
+class ListHandler(Handler):
+    """Custom logging handler that appends log records to a list."""
+    
+    def __init__(self, record_list: typing.List[str]):
+        super().__init__()
+        self.record_list = record_list
+
+    def emit(self, record: LogRecord):
+        """Formats the log record and appends it to the list."""
+        log_entry = self.format(record)+"\n"
+        self.record_list.append(log_entry)
 
 class ParseDelimitedFile:
     r"""
@@ -71,38 +85,22 @@ class ParseDelimitedFile:
         
         self.batch_id = f"({batch_id}) " if batch_id else ""
         self.bad_records = {}
+        
+        self.log_data = []
         self.logger = self.logging_setup()
 
         self.logger.info("%sDelimiter File Checker Initialized", self.batch_id)
         self.logger.info("%s- Delimiter: %s", self.batch_id, self.delimiter)
         self.logger.info("%s- Filename : %s", self.batch_id, self.filename)
         if expected_delimiter_count > 0:
-            self.logger.info(
-                "%s- Expected Delimiter Count: %s",
-                self.batch_id,
-                self.expected_delimiter_count,
-            )
+            self.logger.info("%s- Expected Delimiter Count: %s", self.batch_id, self.expected_delimiter_count)
 
-        self.logger.info(
-            "%s- Write Output File if Bad Records Found: %s",
-            self.batch_id,
-            self.write_output_file,
-        )
-        self.logger.info(
-            "%s- Ignore Over Count Records: %s", self.batch_id, self.ignore_over_count
-        )
+        self.logger.info("%s- Write Output File if Bad Records Found: %s", self.batch_id, self.write_output_file)
+        self.logger.info("%s- Ignore Over Count Records: %s", self.batch_id, self.ignore_over_count)
         if self.replacement_delimiter:
-            self.logger.info(
-                "%s- Replacement Delimiter: %s",
-                self.batch_id,
-                self.replacement_delimiter,
-            )
+            self.logger.info("%s- Replacement Delimiter: %s", self.batch_id, self.replacement_delimiter)
         if self.keep_original:
-            self.logger.info(
-                "%s- Keep Original File: %s",
-                self.batch_id,
-                self.keep_original,
-            )
+            self.logger.info("%s- Keep Original File: %s", self.batch_id, self.keep_original)
 
     def logging_setup(self) -> None:
         """
@@ -113,10 +111,11 @@ class ParseDelimitedFile:
             return logger
         
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG if DEBUG else logging.INFO)
         formatter = logging.Formatter("%(asctime)s.%(msecs)03d | %(levelname)-10s | %(funcName)-22s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
         console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
+        logger.addHandler(console_handler)              # Add console handler to logger for output to console
+        logger.addHandler(ListHandler(self.log_data))   # Add ListHandler to capture logs in a list for potential output file writing
+        logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
         return logger
         
 
@@ -189,7 +188,7 @@ class ParseDelimitedFile:
 
             # Log progress every 100,000 records to provide visibility into processing of large files
             if record_count % 100000 == 0:
-                self.logger.info(f"{self.batch_id}Processed {record_count} records...")
+                self.logger.info("%s Current record delimiter count: %d", self.batch_id, field_count - 1)
 
             # Tally records with under, over and equal delimiter counts compared to header record
             detail_delimiter_count = field_count - 1
@@ -237,9 +236,7 @@ class ParseDelimitedFile:
         # GOOD FILE: all records have same delimiter count as header record (and match expected_delimiter_count if provided)        
         if bad_record_count == 0:
             self.logger.info("%sDelimited Record Counts:", self.batch_id)
-            self.logger.info(
-                "%s- Delimiter count: %d", self.batch_id, header_delimiter_count
-            )
+            self.logger.info("%s- Delimiter count: %d", self.batch_id, header_delimiter_count)
             self.logger.info("%s- Total records  : %d", self.batch_id, record_count)
             self.logger.info("")
             self.logger.info("%sFile is GOOD", self.batch_id)
@@ -337,24 +334,9 @@ class ParseDelimitedFile:
 
         # Write output file to include filename, delimiter, expected fields and all bad records record#, fieldcount, record (including header)
         if self.write_output_file:
-            self.logger.error(
-                "%sDetails: %s", self.batch_id, self.filename + self.FILESUFFIX
-            )
-
             # Build message for bad file summary and detail report (including header record)
             message = []
-            message.append("Bad Delimited File Check Report:\n")
-            message.append(f"filename       : {self.filename}")
-            message.append(f"\ndelimiter value: {self.delimiter}")
-            message.append(
-                f"\ndelimiter count: {(f'{header_delimiter_count/10000:.4f}')[-4:]}"
-            )
-            if self.expected_delimiter_count:
-                message.append(
-                    f"\nexpected  count: {(f'{self.expected_delimiter_count/10000:.4f}')[-4:]}"
-                )
-            
-            message.append("\n\nDelimiter Record Count Summary:\n")
+            message.append("Delimiter Record Count Summary:\n")
             message.append("dcnt records\n")
             message.append("---- --------\n")
             message.append(f"{header_delimiter_count:0>4d} {delimiters_found[header_delimiter_count]:0>8d} (header)\n")
@@ -392,6 +374,7 @@ class ParseDelimitedFile:
             with open(
                 self.filename + self.FILESUFFIX, "w", encoding="utf-8"
             ) as badfile:
+                badfile.write("".join(self.log_data))
                 badfile.write("".join(message))
 
         return 0
